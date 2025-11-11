@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: agenda_automator_db
+    restart: unless-stopped
+    
+    # We zetten de waarden hier hard in, 
+    # net als in je migrate commando en .env
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Bootje12
+      POSTGRES_DB: agenda_automator
+      
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      
+    healthcheck:
+      # We gebruiken de hardcoded waarden hier ook
+      test: ["CMD-SHELL", "psql -U postgres -d agenda_automator -c 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  redis:
+    image: redis:7-alpine
+    container_name: agenda_automator_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  pgdata:
+  redisdata:
