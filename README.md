@@ -46,7 +46,13 @@ Volg deze stappen om de backend lokaal op te zetten en te draaien.
 
 ### 2\. Configuratie (.env)
 
-Maak een bestand genaamd `.env` in de `Backend` map en plak de volgende inhoud erin. **Pas de waarden aan** (vooral de Google credentials en het wachtwoord).
+Maak een bestand genaamd `.env` in de `Backend` map door `.env.example` te kopiëren en de waarden aan te passen:
+
+```bash
+cp .env.example .env
+```
+
+**Pas de waarden aan** in `.env` (vooral de Google credentials en het wachtwoord).
 
 ```.env
 #---------------------------------------------------
