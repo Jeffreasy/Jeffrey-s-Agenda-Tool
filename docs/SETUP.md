@@ -175,17 +175,30 @@ go: downloading github.com/jackc/pgx/v5 v5.5.4
 
 ```bash
 # Run the application
-go run cmd/server/main.go
+go run ./cmd/server
 ```
 
 **Expected Output:**
 ```
-2025/11/11 18:00:00 Successfully connected to database.
-2025/11/00 18:00:00 Starting worker...
-2025/11/11 18:00:00 Application starting API server on port 8080...
-2025/11/11 18:00:00 [Worker] Running work cycle...
-2025/11/11 18:00:00 [Worker] Found 0 active accounts to check.
+2025/11/12 14:00:00 Successfully connected to database.
+2025/11/12 14:00:00 Starting worker...
+2025/11/12 14:00:00 Application starting API server on port 8080...
+2025/11/12 14:00:00 [Worker] Running work cycle...
+2025/11/12 14:00:00 [Worker] Found 0 active accounts to check.
 ```
+
+### Real-Time Monitoring Features
+
+The application now includes **real-time shift monitoring** with the following capabilities:
+
+- **Monitoring Frequency:** Every 30 seconds (real-time detection)
+- **Coverage Window:** 1 year ahead (comprehensive future planning)
+- **Automatic Shift Detection:** Recognizes "Dienst" events
+- **Smart Classification:**
+  - **Time-based:** `< 12:00` = "Vroeg", `≥ 12:00` = "Laat"
+  - **Location-based:** `"aa"` or `"appartementen"` = Team "A", others = Team "R"
+- **Reminder Creation:** Automatic reminders 1 hour before shifts
+- **Parallel Processing:** Handles multiple Google accounts simultaneously
 
 ### Verify Installation
 

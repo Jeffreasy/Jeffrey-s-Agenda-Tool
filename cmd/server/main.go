@@ -1,4 +1,3 @@
-// Vervang hiermee: cmd/server/main.go
 package main
 
 import (
@@ -6,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	// NIEUW voor CORS
 	// Interne packages
 	"agenda-automator-api/internal/api"
 	"agenda-automator-api/internal/database"
@@ -14,8 +14,8 @@ import (
 
 	// Externe packages
 	"github.com/joho/godotenv"
-	"golang.org/x/oauth2"        // <-- NIEUWE IMPORT
-	"golang.org/x/oauth2/google" // <-- NIEUWE IMPORT
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 func main() {
@@ -29,7 +29,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	// 3. (NIEUW) Initialiseer de Gedeelde OAuth2 Config
+	// 3. Initialiseer de Gedeelde OAuth2 Config
 	clientID := os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
 	clientSecret := os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 	redirectURL := os.Getenv("OAUTH_REDIRECT_URL") // e.g. http://localhost:8080/api/v1/auth/google/callback
@@ -43,7 +43,7 @@ func main() {
 		ClientSecret: clientSecret,
 		RedirectURL:  redirectURL,
 		Endpoint:     google.Endpoint,
-		Scopes: []string{ // <-- Definieer hier de scopes die je *altijd* wilt
+		Scopes: []string{
 			"https://www.googleapis.com/auth/calendar.events",
 			"https://www.googleapis.com/auth/userinfo.email",
 			"https://www.googleapis.com/auth/userinfo.profile",
@@ -54,7 +54,7 @@ func main() {
 	dbStore := store.NewStore(pool)
 
 	// 5. Initialiseer de Worker (geef de config mee)
-	appWorker, err := worker.NewWorker(dbStore, googleOAuthConfig) // <-- Aangepast
+	appWorker, err := worker.NewWorker(dbStore, googleOAuthConfig)
 	if err != nil {
 		log.Fatalf("Could not initialize worker: %v", err)
 	}
@@ -63,7 +63,7 @@ func main() {
 	appWorker.Start()
 
 	// 7. Initialiseer de API Server (geef de config mee)
-	apiServer := api.NewServer(dbStore, googleOAuthConfig) // <-- Aangepast
+	apiServer := api.NewServer(dbStore, googleOAuthConfig)
 
 	// 8. Start de HTTP Server (op de voorgrond)
 	port := os.Getenv("API_PORT")

@@ -1,10 +1,10 @@
-// Maak dit bestand: internal/store/store.go
 package store
 
 import (
-	"agenda-automator-api/internal/crypto" // <-- We gebruiken de crypto!
-	"agenda-automator-api/internal/domain" // <-- We gebruiken de modellen!
+	"agenda-automator-api/internal/crypto"
+	"agenda-automator-api/internal/domain"
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -13,23 +13,20 @@ import (
 )
 
 // Storer is de interface voor al onze database-interacties.
-// Dit maakt testen (mocking) later makkelijk.
 type Storer interface {
-	// NIEUW: Functie om een gebruiker aan te maken
 	CreateUser(ctx context.Context, email, name string) (domain.User, error)
 
-	// Bestaande functie
-	CreateConnectedAccount(ctx context.Context, arg CreateConnectedAccountParams) (domain.ConnectedAccount, error)
+	UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error) // Aangepast naar Upsert
 	GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (domain.ConnectedAccount, error)
 	GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAccount, error)
 	UpdateAccountTokens(ctx context.Context, arg UpdateAccountTokensParams) error
+	UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error // NIEUW
 
-	// --- NIEUWE FUNCTIE VOOR DE WORKER ---
+	CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) // NIEUW
 	GetRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.AutomationRule, error)
 }
 
 // DBStore implementeert de Storer interface.
-// Het bevat de verbinding met de database.
 type DBStore struct {
 	pool *pgxpool.Pool
 }
@@ -41,18 +38,14 @@ func NewStore(pool *pgxpool.Pool) Storer {
 	}
 }
 
-// --- NIEUWE FUNCTIE ---
 // CreateUser maakt een nieuwe gebruiker aan in de database
 func (s *DBStore) CreateUser(ctx context.Context, email, name string) (domain.User, error) {
 	query := `
-	INSERT INTO users (email, name) 
-	VALUES ($1, $2)
-	ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
-	RETURNING id, email, name, created_at, updated_at;
-	`
-	// Opmerking: ON CONFLICT (email) DO UPDATE ... is een 'upsert'.
-	// Als de gebruiker al bestaat, update het de naam. Zo crasht je test niet
-	// als je hem twee keer draait.
+    INSERT INTO users (email, name)
+    VALUES ($1, $2)
+    ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id, email, name, created_at, updated_at;
+    `
 
 	row := s.pool.QueryRow(ctx, query, email, name)
 
@@ -72,69 +65,73 @@ func (s *DBStore) CreateUser(ctx context.Context, email, name string) (domain.Us
 	return u, nil
 }
 
-// --- EINDE NIEUWE FUNCTIE ---
-
-// CreateConnectedAccountParams bevat de data die we nodig hebben van de "buitenwereld"
-// om een account aan te maken. We gebruiken NIET direct de 'domain.ConnectedAccount' struct,
-// omdat de tokens nog niet versleuteld zijn.
-type CreateConnectedAccountParams struct {
+// UpsertConnectedAccountParams (aangepast van Create)
+type UpsertConnectedAccountParams struct {
 	UserID         uuid.UUID
 	Provider       domain.ProviderType
 	Email          string
 	ProviderUserID string
-	AccessToken    string // Let op: string!
-	RefreshToken   string // Let op: string!
+	AccessToken    string
+	RefreshToken   string
 	TokenExpiry    time.Time
 	Scopes         []string
 }
 
-// UpdateAccountTokensParams bevat de data om een token te vernieuwen
+// UpdateAccountTokensParams ...
 type UpdateAccountTokensParams struct {
 	AccountID       uuid.UUID
-	NewAccessToken  string // platte tekst
-	NewRefreshToken string // platte tekst (optioneel, soms krijg je geen nieuwe)
+	NewAccessToken  string
+	NewRefreshToken string
 	NewTokenExpiry  time.Time
 }
 
-// CreateConnectedAccount versleutelt de tokens en slaat het account op in de DB.
-func (s *DBStore) CreateConnectedAccount(ctx context.Context, arg CreateConnectedAccountParams) (domain.ConnectedAccount, error) {
+// UpsertConnectedAccount versleutelt de tokens en slaat het account op (upsert)
+func (s *DBStore) UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error) {
 
-	// 1. Encrypt de tokens
+	// Encrypt de tokens
 	encryptedAccessToken, err := crypto.Encrypt([]byte(arg.AccessToken))
 	if err != nil {
 		return domain.ConnectedAccount{}, fmt.Errorf("could not encrypt access token: %w", err)
 	}
 
-	encryptedRefreshToken, err := crypto.Encrypt([]byte(arg.RefreshToken))
-	if err != nil {
-		return domain.ConnectedAccount{}, fmt.Errorf("could not encrypt refresh token: %w", err)
+	var encryptedRefreshToken []byte
+	if arg.RefreshToken != "" {
+		encryptedRefreshToken, err = crypto.Encrypt([]byte(arg.RefreshToken))
+		if err != nil {
+			return domain.ConnectedAccount{}, fmt.Errorf("could not encrypt refresh token: %w", err)
+		}
 	}
 
-	// 2. Definieer de SQL Query
+	// Definieer de SQL Query met upsert
 	query := `
-	INSERT INTO connected_accounts (
-		user_id, provider, email, provider_user_id, 
-		access_token, refresh_token, token_expiry, scopes, status
-	) VALUES (
-		$1, $2, $3, $4, $5, $6, $7, $8, 'active'
-	)
-	RETURNING id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at;
-	`
+    INSERT INTO connected_accounts (
+        user_id, provider, email, provider_user_id,
+        access_token, refresh_token, token_expiry, scopes, status
+    ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, 'active'
+    )
+    ON CONFLICT (user_id, provider, provider_user_id) 
+    DO UPDATE SET 
+        access_token = EXCLUDED.access_token, 
+        refresh_token = EXCLUDED.refresh_token, 
+        token_expiry = EXCLUDED.token_expiry, 
+        scopes = EXCLUDED.scopes, 
+        status = 'active', 
+        updated_at = now()
+    RETURNING id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at, last_checked;
+    `
 
-	// 3. Voer de query uit
-	// We gebruiken QueryRow omdat we één rij terug verwachten (RETURNING ...)
 	row := s.pool.QueryRow(ctx, query,
 		arg.UserID,
 		arg.Provider,
 		arg.Email,
 		arg.ProviderUserID,
-		encryptedAccessToken,  // <-- Het versleutelde []byte
-		encryptedRefreshToken, // <-- Het versleutelde []byte
+		encryptedAccessToken,
+		encryptedRefreshToken,
 		arg.TokenExpiry,
 		arg.Scopes,
 	)
 
-	// 4. Scan de teruggegeven rij in onze struct
 	var acc domain.ConnectedAccount
 	err = row.Scan(
 		&acc.ID,
@@ -142,31 +139,30 @@ func (s *DBStore) CreateConnectedAccount(ctx context.Context, arg CreateConnecte
 		&acc.Provider,
 		&acc.Email,
 		&acc.ProviderUserID,
-		&acc.AccessToken,  // <-- Dit is nu de versleutelde []byte
-		&acc.RefreshToken, // <-- Dit is nu de versleutelde []byte
+		&acc.AccessToken,
+		&acc.RefreshToken,
 		&acc.TokenExpiry,
 		&acc.Scopes,
 		&acc.Status,
 		&acc.CreatedAt,
 		&acc.UpdatedAt,
+		&acc.LastChecked,
 	)
 
 	if err != nil {
-		// Hier kun je specifieke db errors afvangen (bijv. 'unique constraint')
 		return domain.ConnectedAccount{}, fmt.Errorf("db scan error: %w", err)
 	}
 
 	return acc, nil
 }
 
-// GetConnectedAccountByID haalt één specifiek account op uit de database op basis van ID.
-// De tokens zijn nog versleuteld ([]byte).
+// GetConnectedAccountByID ...
 func (s *DBStore) GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (domain.ConnectedAccount, error) {
 	query := `
-		SELECT id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at
-		FROM connected_accounts
-		WHERE id = $1
-	`
+        SELECT id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at, last_checked
+        FROM connected_accounts
+        WHERE id = $1
+    `
 
 	row := s.pool.QueryRow(ctx, query, id)
 
@@ -184,6 +180,7 @@ func (s *DBStore) GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (do
 		&acc.Status,
 		&acc.CreatedAt,
 		&acc.UpdatedAt,
+		&acc.LastChecked,
 	)
 
 	if err != nil {
@@ -193,41 +190,37 @@ func (s *DBStore) GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (do
 	return acc, nil
 }
 
+// UpdateAccountTokens ...
 func (s *DBStore) UpdateAccountTokens(ctx context.Context, arg UpdateAccountTokensParams) error {
-	// 1. Encrypt de nieuwe tokens
 	encryptedAccessToken, err := crypto.Encrypt([]byte(arg.NewAccessToken))
 	if err != nil {
 		return fmt.Errorf("could not encrypt new access token: %w", err)
 	}
 
-	// 2. Bouw de query. We updaten de refresh token alleen als er een nieuwe is.
 	var query string
 	var args []interface{}
 
 	if arg.NewRefreshToken != "" {
-		// Encrypt de nieuwe refresh token
 		encryptedRefreshToken, err := crypto.Encrypt([]byte(arg.NewRefreshToken))
 		if err != nil {
 			return fmt.Errorf("could not encrypt new refresh token: %w", err)
 		}
 
 		query = `
-		UPDATE connected_accounts
-		SET access_token = $1, refresh_token = $2, token_expiry = $3, updated_at = now()
-		WHERE id = $4;
-		`
+        UPDATE connected_accounts
+        SET access_token = $1, refresh_token = $2, token_expiry = $3, updated_at = now()
+        WHERE id = $4;
+        `
 		args = []interface{}{encryptedAccessToken, encryptedRefreshToken, arg.NewTokenExpiry, arg.AccountID}
 	} else {
-		// Update alleen het access token
 		query = `
-		UPDATE connected_accounts
-		SET access_token = $1, token_expiry = $2, updated_at = now()
-		WHERE id = $3;
-		`
+        UPDATE connected_accounts
+        SET access_token = $1, token_expiry = $2, updated_at = now()
+        WHERE id = $3;
+        `
 		args = []interface{}{encryptedAccessToken, arg.NewTokenExpiry, arg.AccountID}
 	}
 
-	// 3. Voer de update uit
 	cmdTag, err := s.pool.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("db exec error: %w", err)
@@ -240,16 +233,31 @@ func (s *DBStore) UpdateAccountTokens(ctx context.Context, arg UpdateAccountToke
 	return nil
 }
 
-// --- NIEUWE FUNCTIE: GetActiveAccounts ---
-// Haalt alle accounts op die de worker moet controleren
+// NIEUW: UpdateAccountLastChecked
+func (s *DBStore) UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error {
+	query := `
+    UPDATE connected_accounts
+    SET last_checked = now(), updated_at = now()
+    WHERE id = $1;
+    `
+
+	_, err := s.pool.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("db exec error: %w", err)
+	}
+
+	return nil
+}
+
+// GetActiveAccounts haalt alle accounts op die de worker moet controleren (real-time monitoring)
 func (s *DBStore) GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAccount, error) {
 	query := `
-	SELECT id, user_id, provider, email, provider_user_id,
-		   access_token, refresh_token, token_expiry, scopes, status,
-		   created_at, updated_at
-	FROM connected_accounts
-	WHERE status = 'active';
-	` // We controleren alleen 'actieve' accounts
+    SELECT id, user_id, provider, email, provider_user_id,
+           access_token, refresh_token, token_expiry, scopes, status,
+           created_at, updated_at, last_checked
+    FROM connected_accounts
+    WHERE status = 'active';
+    ` // Real-time: Check alle actieve accounts elke keer
 
 	rows, err := s.pool.Query(ctx, query)
 	if err != nil {
@@ -273,6 +281,7 @@ func (s *DBStore) GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAcco
 			&acc.Status,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
+			&acc.LastChecked,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("db row scan error: %w", err)
@@ -287,15 +296,59 @@ func (s *DBStore) GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAcco
 	return accounts, nil
 }
 
-// --- NIEUWE FUNCTIE: GetRulesForAccount ---
-// Haalt alle actieve regels op voor een specifiek account
+// CreateAutomationRuleParams (nieuw)
+type CreateAutomationRuleParams struct {
+	ConnectedAccountID uuid.UUID
+	Name               string
+	TriggerConditions  json.RawMessage // []byte
+	ActionParams       json.RawMessage // []byte
+}
+
+// CreateAutomationRule (nieuw)
+func (s *DBStore) CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) {
+	query := `
+    INSERT INTO automation_rules (
+        connected_account_id, name, trigger_conditions, action_params
+    ) VALUES (
+        $1, $2, $3, $4
+    )
+    RETURNING id, connected_account_id, name, is_active, trigger_conditions, action_params, created_at, updated_at;
+    `
+
+	row := s.pool.QueryRow(ctx, query,
+		arg.ConnectedAccountID,
+		arg.Name,
+		arg.TriggerConditions,
+		arg.ActionParams,
+	)
+
+	var rule domain.AutomationRule
+	err := row.Scan(
+		&rule.ID,
+		&rule.ConnectedAccountID,
+		&rule.Name,
+		&rule.IsActive,
+		&rule.TriggerConditions,
+		&rule.ActionParams,
+		&rule.CreatedAt,
+		&rule.UpdatedAt,
+	)
+
+	if err != nil {
+		return domain.AutomationRule{}, fmt.Errorf("db scan error: %w", err)
+	}
+
+	return rule, nil
+}
+
+// GetRulesForAccount ...
 func (s *DBStore) GetRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.AutomationRule, error) {
 	query := `
-	SELECT id, connected_account_id, name, is_active,
-		   trigger_conditions, action_params, created_at, updated_at
-	FROM automation_rules
-	WHERE connected_account_id = $1 AND is_active = true;
-	` // We gebruiken hier de 'partial index' die we hebben gemaakt!
+    SELECT id, connected_account_id, name, is_active,
+           trigger_conditions, action_params, created_at, updated_at
+    FROM automation_rules
+    WHERE connected_account_id = $1 AND is_active = true;
+    `
 
 	rows, err := s.pool.Query(ctx, query, accountID)
 	if err != nil {
@@ -311,8 +364,8 @@ func (s *DBStore) GetRulesForAccount(ctx context.Context, accountID uuid.UUID) (
 			&rule.ConnectedAccountID,
 			&rule.Name,
 			&rule.IsActive,
-			&rule.TriggerConditions, // Dit is []byte
-			&rule.ActionParams,      // Dit is []byte
+			&rule.TriggerConditions,
+			&rule.ActionParams,
 			&rule.CreatedAt,
 			&rule.UpdatedAt,
 		)

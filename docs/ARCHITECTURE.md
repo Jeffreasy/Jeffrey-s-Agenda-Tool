@@ -30,27 +30,35 @@ The API server handles all reactive HTTP requests using the Chi router framework
 
 ### 2. Background Worker (`/internal/worker`)
 
-The worker is a long-running goroutine that proactively monitors connected accounts and performs basic calendar monitoring.
+The worker is a high-frequency real-time monitoring system that proactively scans connected Google Calendar accounts and executes automation rules for shift management.
 
 **Responsibilities:**
-- Periodic account scanning (every minute)
+- **Real-time account scanning** (every 30 seconds)
 - OAuth token refresh for expired tokens
-- Calendar event fetching from Google Calendar
-- Logging of events and rules (automation execution not yet implemented)
+- **Comprehensive calendar monitoring** (1 year ahead)
+- **Intelligent shift detection** and reminder creation
+- **Parallel processing** of multiple accounts
 
 **Key Files:**
 - `worker.go`: Main worker logic and scheduling
 
-**Current Status:**
-- Fetches calendar events that started in the last minute
-- Retrieves automation rules from database
-- Logs events and rules for debugging
-- Automation execution logic is placeholder (logs only)
+**Real-Time Monitoring Features:**
+- **Frequency:** Every 30 seconds for immediate detection
+- **Coverage:** Monitors events for the entire next year
+- **Smart Detection:**
+  - Recognizes "Dienst" events automatically
+  - Classifies shifts: "Vroeg" (< 12:00) vs "Laat" (≥ 12:00)
+  - Identifies teams: "A" (locations with "aa"/"appartementen") vs "R" (others)
+- **Automated Actions:**
+  - Creates reminders 1 hour before shifts
+  - Generates smart titles: "{Vroeg/Laat} {A/R}"
+  - Sets appropriate duration (5 minutes default)
 
 **Design Pattern:**
-- Uses a ticker-based approach for periodic execution
+- Uses high-frequency ticker for real-time responsiveness
 - Runs concurrently with the API server
-- Graceful shutdown handling
+- Implements parallel goroutines for multi-account processing
+- Graceful error handling and recovery
 
 ### 3. Database Layer (`/internal/store`)
 
@@ -114,15 +122,17 @@ Manages database connectivity and configuration.
 9. Backend encrypts and stores tokens in connected_accounts table
 10. Backend redirects user to frontend dashboard with success indicator
 
-### Automation Monitoring Flow
-1. Worker runs every minute
-2. Queries active connected accounts
+### Real-Time Automation Monitoring Flow
+1. Worker runs **every 30 seconds** (real-time monitoring)
+2. Queries **all active connected accounts** (no time filtering)
 3. For each account:
-   - Checks token expiry
-   - Refreshes token if needed
-   - Fetches recent calendar events (last minute)
+   - Checks token expiry and refreshes if needed
+   - Fetches calendar events for **entire next year**
    - Retrieves automation rules from database
-   - Logs events and rules (no execution yet)
+   - **Automatically detects "Dienst" events**
+   - **Classifies shifts**: Vroeg/Laat based on time, A/R based on location
+   - **Creates reminder events** 1 hour before shifts with smart titles
+   - Updates `last_checked` timestamp for performance tracking
 
 ## Security Considerations
 

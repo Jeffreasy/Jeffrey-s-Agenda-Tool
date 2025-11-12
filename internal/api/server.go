@@ -1,22 +1,23 @@
-// Vervang hiermee: internal/api/server.go
 package api
 
 import (
 	"agenda-automator-api/internal/store"
 	"net/http"
+	"os"      // NIEUW voor env
+	"strings" // NIEUW voor split
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"golang.org/x/oauth2" // <-- NIEUWE IMPORT
+	"golang.org/x/oauth2"
 )
 
 // Server is de hoofdstruct voor je API
 type Server struct {
 	store             store.Storer
 	Router            *chi.Mux
-	googleOAuthConfig *oauth2.Config // <-- NIEUW
+	googleOAuthConfig *oauth2.Config
 }
 
 // NewServer (AANGEPAST) - accepteert nu de config
@@ -28,10 +29,13 @@ func NewServer(s store.Storer, oauthCfg *oauth2.Config) *Server {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	// CORS
+	// CORS dynamic vanuit .env (bijv. ALLOWED_ORIGINS=http://localhost:3000,https://prod.com)
+	allowedOrigins := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
+	if len(allowedOrigins) == 0 {
+		allowedOrigins = []string{"http://localhost:3000"}
+	}
 	r.Use(cors.Handler(cors.Options{
-		// Pas dit aan voor je Next.js dev server
-		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
@@ -42,7 +46,7 @@ func NewServer(s store.Storer, oauthCfg *oauth2.Config) *Server {
 	server := &Server{
 		store:             s,
 		Router:            r,
-		googleOAuthConfig: oauthCfg, // <-- Sla de config op
+		googleOAuthConfig: oauthCfg,
 	}
 
 	// Koppel de routes aan functies
@@ -67,10 +71,8 @@ func (s *Server) registerRoutes() {
 		// /api/v1/users
 		r.Post("/users", s.handleCreateUser())
 
-		// POST /api/v1/users/{userID}/accounts
-		// (Deze route is nu overbodig, de callback doet dit.
-		// Je kunt hem weghalen of laten staan als 'handmatige' methode.)
-		r.Post("/users/{userID}/accounts", s.handleCreateConnectedAccount())
+		// NIEUW: /api/v1/rules
+		r.Post("/rules", s.handleCreateAutomationRule())
 	})
 }
 

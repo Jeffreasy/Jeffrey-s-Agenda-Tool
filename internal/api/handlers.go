@@ -1,24 +1,21 @@
-// Vervang hiermee: internal/api/handlers.go
 package api
 
 import (
 	"agenda-automator-api/internal/domain"
 	"agenda-automator-api/internal/store"
 	"context"
-	"crypto/rand"     // <-- NIEUWE IMPORT
-	"encoding/base64" // <-- NIEUWE IMPORT
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
-	"fmt" // <-- NIEUWE IMPORT
-	"log" // <-- NIEUWE IMPORT
+	"fmt"
+	"log"
 	"net/http"
-	"os" // <-- NIEUWE IMPORT
-	"time"
+	"os"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"golang.org/x/oauth2"                      // <-- NIEUWE IMPORT
-	oauth2v2 "google.golang.org/api/oauth2/v2" // <-- NIEUWE IMPORT aliased
-	"google.golang.org/api/option"             // <-- NIEUWE IMPORT
+	"golang.org/x/oauth2"
+	oauth2v2 "google.golang.org/api/oauth2/v2"
+	"google.golang.org/api/option"
 )
 
 // --- NIEUWE AUTH HANDLERS ---
@@ -44,8 +41,8 @@ func (s *Server) handleGoogleLogin() http.HandlerFunc {
 		http.SetCookie(w, cookie)
 
 		// 3. Stuur de gebruiker door naar de Google consent pagina
-		// 'Offline' is cruciaal om een 'refresh_token' te krijgen
-		authURL := s.googleOAuthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
+		// 'Offline' en 'ApprovalForce' om altijd refresh_token te krijgen
+		authURL := s.googleOAuthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 		http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
 	}
 }
@@ -74,8 +71,8 @@ func (s *Server) handleGoogleCallback() http.HandlerFunc {
 			return
 		}
 		if token.RefreshToken == "" {
-			log.Println("[OAuth] WAARSCHUWING: Geen refresh token ontvangen. Is de gebruiker al geauthenticeerd?")
-			// Dit gebeurt als een gebruiker *opnieuw* inlogt.
+			WriteJSONError(w, http.StatusBadRequest, "Geen refresh token ontvangen. Probeer opnieuw.")
+			return
 		}
 
 		// 3. Haal de profielinformatie van de gebruiker op
@@ -86,36 +83,33 @@ func (s *Server) handleGoogleCallback() http.HandlerFunc {
 		}
 
 		// 4. Vind of maak de gebruiker aan in onze DB
-		// We gebruiken de 'ON CONFLICT' in CreateUser als een 'Upsert'
 		user, err := s.store.CreateUser(ctx, userInfo.Email, userInfo.Name)
 		if err != nil {
 			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon gebruiker niet aanmaken: %s", err.Error()))
 			return
 		}
 
-		// 5. Sla de nieuwe, ECHTE tokens veilig op
-		params := store.CreateConnectedAccountParams{
+		// 5. Sla de nieuwe tokens veilig op (upsert)
+		params := store.UpsertConnectedAccountParams{
 			UserID:         user.ID,
 			Provider:       domain.ProviderGoogle,
 			Email:          userInfo.Email,
-			ProviderUserID: userInfo.Id, // Het Google ID
+			ProviderUserID: userInfo.Id,
 			AccessToken:    token.AccessToken,
 			RefreshToken:   token.RefreshToken,
 			TokenExpiry:    token.Expiry,
 			Scopes:         s.googleOAuthConfig.Scopes,
 		}
 
-		// TODO: We moeten hier 'CreateOrUpdate' logica hebben,
-		// want `CreateConnectedAccount` faalt als het account al bestaat.
-		// Voor nu negeren we de fout.
-		_, _ = s.store.CreateConnectedAccount(ctx, params)
-		// if err != nil {
-		// 	WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon account niet koppelen: %s", err.Error()))
-		// 	return
-		// }
+		account, err := s.store.UpsertConnectedAccount(ctx, params)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon account niet koppelen: %s", err.Error()))
+			return
+		}
+
+		log.Printf("Account %s gekoppeld voor user %s", account.ID, user.ID)
 
 		// 6. Stuur de gebruiker terug naar de frontend
-		// Je kunt de cookie hier ook verwijderen
 		http.Redirect(w, r, os.Getenv("CLIENT_BASE_URL")+"/dashboard?success=true", http.StatusSeeOther)
 	}
 }
@@ -135,10 +129,6 @@ func getUserInfo(ctx context.Context, token *oauth2.Token) (*oauth2v2.Userinfo, 
 
 	return userInfo, nil
 }
-
-// --- BESTAANDE HANDLERS ---
-// (Plak hier je bestaande handleCreateUser en handleCreateConnectedAccount)
-// ...
 
 // --- CreateUser (Bestaande code) ---
 
@@ -170,71 +160,37 @@ func (s *Server) handleCreateUser() http.HandlerFunc {
 	}
 }
 
-// --- CreateConnectedAccount (Nieuwe code) ---
+// --- CreateConnectedAccount (Verwijderd, want overbodig na callback upsert) ---
 
-// CreateConnectedAccountRequest definieert de JSON body die we verwachten
-// Dit is wat je Next.js app stuurt na de OAuth flow.
-type CreateConnectedAccountRequest struct {
-	Provider       domain.ProviderType `json:"provider"` // "google" of "microsoft"
-	Email          string              `json:"email"`
-	ProviderUserID string              `json:"provider_user_id"`
-	AccessToken    string              `json:"access_token"`
-	RefreshToken   string              `json:"refresh_token"`
-	TokenExpiry    time.Time           `json:"token_expiry"` // ISO-8601 formaat, e.g. "2025-11-11T18:30:00Z"
-	Scopes         []string            `json:"scopes"`
+// Voeg endpoint toe voor rules creatie (nieuw)
+type CreateAutomationRuleRequest struct {
+	ConnectedAccountID uuid.UUID       `json:"connected_account_id"`
+	Name               string          `json:"name"`
+	TriggerConditions  json.RawMessage `json:"trigger_conditions"`
+	ActionParams       json.RawMessage `json:"action_params"`
 }
 
-func (s *Server) handleCreateConnectedAccount() http.HandlerFunc {
+func (s *Server) handleCreateAutomationRule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Haal de userID uit de URL
-		userIDStr := chi.URLParam(r, "userID")
-		userID, err := uuid.Parse(userIDStr)
-		if err != nil {
-			WriteJSONError(w, http.StatusBadRequest, "Invalid user ID format")
-			return
-		}
-
-		// 2. Decodeer de JSON body
-		var req CreateConnectedAccountRequest
+		var req CreateAutomationRuleRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			WriteJSONError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
-		// 3. Valideer de input (simpel)
-		if req.AccessToken == "" || req.Provider == "" {
-			WriteJSONError(w, http.StatusBadRequest, "Access token and provider are required")
-			return
+		params := store.CreateAutomationRuleParams{
+			ConnectedAccountID: req.ConnectedAccountID,
+			Name:               req.Name,
+			TriggerConditions:  req.TriggerConditions,
+			ActionParams:       req.ActionParams,
 		}
 
-		// 4. Map de API request naar de Store parameters
-		params := store.CreateConnectedAccountParams{
-			UserID:         userID, // Vanuit de URL
-			Provider:       req.Provider,
-			Email:          req.Email,
-			ProviderUserID: req.ProviderUserID,
-			AccessToken:    req.AccessToken,
-			RefreshToken:   req.RefreshToken,
-			TokenExpiry:    req.TokenExpiry,
-			Scopes:         req.Scopes,
-		}
-
-		// 5. Roep de store aan
-		// De store versleutelt de tokens en slaat ze op
-		account, err := s.store.CreateConnectedAccount(r.Context(), params)
+		rule, err := s.store.CreateAutomationRule(r.Context(), params)
 		if err != nil {
-			// Dit kan falen door:
-			// 1. Foreign key (userID bestaat niet)
-			// 2. Unique constraint (account is al gekoppeld)
-			// 3. Encryptie fout
-			log.Printf("Failed to create connected account: %v", err)
-			WriteJSONError(w, http.StatusInternalServerError, "Could not connect account")
+			WriteJSONError(w, http.StatusInternalServerError, "Could not create rule")
 			return
 		}
 
-		// 6. Stuur het gemaakte account terug
-		// Belangrijk: het 'account' object dat terugkomt bevat de *versleutelde* tokens.
-		// We sturen het nu terug, maar in productie wil je de tokens misschien verbergen.
-		WriteJSON(w, http.StatusCreated, account)
+		WriteJSON(w, http.StatusCreated, rule)
 	}
 }

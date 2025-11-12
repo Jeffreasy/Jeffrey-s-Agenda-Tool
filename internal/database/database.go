@@ -10,9 +10,7 @@ import (
 )
 
 // ConnectDB maakt en test een verbinding met de database.
-// We gebruiken een *pgxpool.Pool voor connection pooling.
 func ConnectDB() (*pgxpool.Pool, error) {
-	// We gaan ervan uit dat de config al is geladen (zie main.go)
 	dbUrl := os.Getenv("DATABASE_URL")
 	log.Println("Connecting to DB URL:", dbUrl)
 	if dbUrl == "" {
@@ -24,7 +22,6 @@ func ConnectDB() (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("unable to create connection pool: %v", err)
 	}
 
-	// Ping de database om de verbinding te verifiëren
 	if err := pool.Ping(context.Background()); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("unable to connect to database: %v", err)

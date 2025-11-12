@@ -147,46 +147,45 @@ curl -X POST http://localhost:8080/api/v1/users \
 
 ---
 
-### Connected Accounts (Legacy)
+### Automation Rules
 
-#### Create Connected Account
+#### Create Automation Rule
 
-**⚠️ Legacy Endpoint:** This endpoint is primarily for development/testing purposes. In production, OAuth account connection is handled automatically through the `/api/v1/auth/google/callback` endpoint.
+Create a new automation rule for shift monitoring and reminder creation.
 
-Link a Google OAuth account to an existing user manually.
+**Endpoint:** `POST /rules`
 
-**Endpoint:** `POST /users/{userID}/accounts`
-
-**Description:** Manually stores OAuth tokens and account information for a Google account. This endpoint bypasses the standard OAuth flow and should only be used for testing.
-
-**Parameters:**
-- `userID` (path): UUID of the user
+**Description:** Creates an automation rule that defines how the system should monitor calendar events and create reminders. The rule uses flexible JSONB configuration for trigger conditions and action parameters.
 
 **Request Body:**
 ```json
 {
-  "provider": "google",
-  "email": "string (required, valid email)",
-  "provider_user_id": "string (required)",
-  "access_token": "string (required)",
-  "refresh_token": "string (optional)",
-  "token_expiry": "string (required, RFC3339 timestamp)",
-  "scopes": ["string"] (required, array of OAuth scopes)
+  "connected_account_id": "uuid (required)",
+  "name": "string (required)",
+  "trigger_conditions": {
+    "summary_equals": "Dienst"
+  },
+  "action_params": {
+    "offset_minutes": -60,
+    "duration_min": 5
+  }
 }
 ```
 
 **Request Example:**
 ```bash
-curl -X POST http://localhost:8080/api/v1/users/123e4567-e89b-12d3-a456-426614174000/accounts \
+curl -X POST http://localhost:8080/api/v1/rules \
   -H "Content-Type: application/json" \
   -d '{
-    "provider": "google",
-    "email": "john.doe@gmail.com",
-    "provider_user_id": "google-sub-id-12345",
-    "access_token": "ya29.a0AfH6SMC...",
-    "refresh_token": "1//0gM...",
-    "token_expiry": "2025-11-11T19:00:00Z",
-    "scopes": ["https://www.googleapis.com/auth/calendar.events"]
+    "connected_account_id": "123e4567-e89b-12d3-a456-426614174000",
+    "name": "Shift Reminders",
+    "trigger_conditions": {
+      "summary_equals": "Dienst"
+    },
+    "action_params": {
+      "offset_minutes": -60,
+      "duration_min": 5
+    }
   }'
 ```
 
@@ -194,29 +193,33 @@ curl -X POST http://localhost:8080/api/v1/users/123e4567-e89b-12d3-a456-42661417
 ```json
 {
   "ID": "uuid",
-  "UserID": "uuid",
-  "Provider": "google",
-  "Email": "john.doe@gmail.com",
-  "ProviderUserID": "google-sub-id-12345",
-  "AccessToken": "encrypted_data",
-  "RefreshToken": "encrypted_data",
-  "TokenExpiry": "2025-11-11T19:00:00Z",
-  "Scopes": ["https://www.googleapis.com/auth/calendar.events"],
-  "Status": "active",
-  "CreatedAt": "2025-11-11T18:00:00Z",
-  "UpdatedAt": "2025-11-11T18:00:00Z"
+  "ConnectedAccountID": "uuid",
+  "Name": "Shift Reminders",
+  "IsActive": true,
+  "TriggerConditions": "base64-encoded-jsonb",
+  "ActionParams": "base64-encoded-jsonb",
+  "CreatedAt": "2025-11-12T14:00:00Z",
+  "UpdatedAt": "2025-11-12T14:00:00Z"
 }
 ```
 
-**Notes:**
-- Only Google provider is currently supported
-- Tokens are encrypted before storage using AES-GCM
-- The encrypted tokens are returned as base64-encoded byte arrays
+**Trigger Conditions:**
+- `summary_equals`: Exact match for event summary (e.g., "Dienst")
+- `summary_contains`: Array of strings to match in summary (fallback)
+
+**Action Parameters:**
+- `offset_minutes`: Minutes before event to create reminder (negative = before)
+- `duration_min`: Duration of reminder event in minutes
+- `title_prefix`: Optional prefix for reminder titles
 
 **Error Responses:**
-- `400 Bad Request`: Invalid provider, missing required fields, or invalid UUID
-- `404 Not Found`: User not found
-- `500 Internal Server Error`: Database or encryption error
+- `400 Bad Request`: Invalid JSON or missing required fields
+- `500 Internal Server Error`: Database error
+
+**Notes:**
+- Rules are automatically applied by the real-time worker
+- The worker runs every 30 seconds and monitors 1 year ahead
+- Reminders are created with smart titles: "{Vroeg/Laat} {A/R}"
 
 ## Rate Limiting
 

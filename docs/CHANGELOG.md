@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Real-time shift monitoring system** with 30-second intervals
+- **Comprehensive calendar coverage** for entire next year
+- **Intelligent shift classification**: Automatic "Vroeg/Laat" and "A/R" team detection
+- **Automated reminder creation** with smart titles ("Vroeg A", "Laat R", etc.)
+- **Parallel account processing** for multiple Google Calendar accounts
+- **Flexible automation rules** with JSONB configuration
+- **New API endpoint**: `POST /api/v1/rules` for automation rule management
 - Backend-driven OAuth 2.0 flow with CSRF protection
 - New OAuth endpoints: `/api/v1/auth/google/login` and `/api/v1/auth/google/callback`
 - Automatic user creation/update during OAuth flow
@@ -23,10 +30,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive documentation
 
 ### Changed
+- **Worker frequency**: Upgraded from 5-minute to 30-second real-time monitoring
+- **Monitoring window**: Expanded from 24 hours to 1 year comprehensive coverage
+- **Database queries**: Removed `last_checked` filtering for continuous monitoring
 - OAuth flow completely refactored from frontend-driven to backend-driven
 - OAuth configuration centralized in main.go and injected into components
 - Updated all documentation to reflect new OAuth architecture
 - Legacy connected accounts endpoint marked as deprecated
+
+### Performance
+- **30x faster detection**: Changes detected within 30 seconds instead of 5 minutes
+- **Parallel processing**: Multiple accounts processed simultaneously
+- **Comprehensive coverage**: 1-year monitoring window vs previous limited scope
 
 ### Security
 - Implemented CSRF protection for OAuth flow

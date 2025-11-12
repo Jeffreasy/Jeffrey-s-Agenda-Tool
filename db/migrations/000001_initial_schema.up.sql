@@ -1,4 +1,3 @@
--- Plak dit in 000001_initial_schema.up.sql
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TYPE provider_type AS ENUM (
@@ -13,7 +12,7 @@ CREATE TYPE account_status AS ENUM (
     'paused'
 );
 
-CREATE TYPE log_status AS ENUM (
+CREATE TYPE automation_log_status AS ENUM (
     'pending',
     'success',
     'failure',
@@ -41,6 +40,7 @@ CREATE TABLE connected_accounts (
     status account_status NOT NULL DEFAULT 'active',
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
+    last_checked timestamptz,
     UNIQUE (user_id, provider, provider_user_id)
 );
 CREATE INDEX idx_connected_accounts_user_id ON connected_accounts(user_id);
@@ -62,7 +62,7 @@ CREATE TABLE automation_logs (
     connected_account_id uuid NOT NULL REFERENCES connected_accounts(id) ON DELETE CASCADE,
     rule_id uuid REFERENCES automation_rules(id) ON DELETE SET NULL,
     timestamp timestamptz NOT NULL DEFAULT now(),
-    status log_status NOT NULL,
+    status automation_log_status NOT NULL,
     trigger_details jsonb,
     action_details jsonb,
     error_message text
