@@ -23,7 +23,30 @@ services:
       retries: 5
       start_period: 15s
 
-# Redis verwijderd, want niet gebruikt
+  app:
+    build: .
+    container_name: agenda_automator_app
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    environment:
+      - DATABASE_URL=postgres://postgres:Bootje12@db:5432/agenda_automator?sslmode=disable
+      - APP_ENV=development
+      - API_PORT=8080
+      - ENCRYPTION_KEY=IJvSU0jEVrm3CBNzdAMoDRT9sQlnZcea
+      - CLIENT_BASE_URL=http://localhost:3000
+      - OAUTH_REDIRECT_URL=http://localhost:8080/api/v1/auth/google/callback
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+      - RUN_MIGRATIONS=true
+      - LOG_MAX_SIZE=10MB
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
 
 volumes:
   pgdata:
