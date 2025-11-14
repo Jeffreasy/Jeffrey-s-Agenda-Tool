@@ -6,6 +6,7 @@ import (
 	"agenda-automator-api/internal/store"
 	"context"
 	"encoding/json"
+	"errors" // NIEUW
 	"fmt"
 	"log"
 	"strings"
@@ -16,6 +17,9 @@ import (
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 )
+
+// NIEUW: (Optimalisatie 2) Specifieke error voor revoked tokens
+var ErrTokenRevoked = fmt.Errorf("token access has been revoked by user")
 
 // Worker is de struct voor onze achtergrond-processor
 type Worker struct {
@@ -44,7 +48,8 @@ func (w *Worker) Start() {
 
 // run is de hoofdloop die periodiek de accounts controleert (real-time monitoring)
 func (w *Worker) run() {
-	ticker := time.NewTicker(30 * time.Second) // Real-time: elke 30 seconden
+	// Verhoogd interval om API-limieten te respecteren
+	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 
 	// Draai één keer direct bij het opstarten
@@ -60,7 +65,7 @@ func (w *Worker) run() {
 func (w *Worker) doWork() {
 	log.Println("[Worker] Running work cycle...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 110*time.Second) // Iets korter dan ticker
 	defer cancel()
 
 	err := w.checkAccounts(ctx)
@@ -91,7 +96,7 @@ func (w *Worker) checkAccounts(ctx context.Context) error {
 	return nil
 }
 
-// processAccount (nieuw: per account goroutine logica)
+// processAccount (AANGEPAST met Optimalisatie 2)
 func (w *Worker) processAccount(ctx context.Context, acc domain.ConnectedAccount) {
 	// Maak een 'token' object van de data in de DB
 	token, err := w.getTokenForAccount(acc)
@@ -106,15 +111,25 @@ func (w *Worker) processAccount(ctx context.Context, acc domain.ConnectedAccount
 
 		newToken, err := w.refreshAccountToken(ctx, token)
 		if err != nil {
-			log.Printf("[Worker] ERROR refreshing account %s: %v", acc.ID, err)
-			// TODO: Markeer als 'error'
-			return
+			// --- OPTIMALISATIE 2: ERROR HANDLING ---
+			if errors.Is(err, ErrTokenRevoked) {
+				log.Printf("[Worker] FATAL: Access for account %s has been revoked. Setting status to 'revoked'.", acc.ID)
+				// Zet account op 'revoked' in DB zodat we het niet opnieuw proberen
+				if err := w.store.UpdateAccountStatus(ctx, acc.ID, domain.StatusRevoked); err != nil {
+					log.Printf("[Worker] ERROR: Failed to update status for revoked account %s: %v", acc.ID, err)
+				}
+			} else {
+				// Andere, tijdelijke refresh error
+				log.Printf("[Worker] ERROR refreshing account %s: %v", acc.ID, err)
+			}
+			return // Stop verwerking voor dit account
+			// --- EINDE OPTIMALISATIE 2 ---
 		}
 
 		err = w.store.UpdateAccountTokens(ctx, store.UpdateAccountTokensParams{
 			AccountID:       acc.ID,
 			NewAccessToken:  newToken.AccessToken,
-			NewRefreshToken: newToken.RefreshToken,
+			NewRefreshToken: newToken.RefreshToken, // Zorg dat we de nieuwe refresh token opslaan
 			NewTokenExpiry:  newToken.Expiry,
 		})
 		if err != nil {
@@ -160,19 +175,58 @@ func (w *Worker) getTokenForAccount(acc domain.ConnectedAccount) (*oauth2.Token,
 	}, nil
 }
 
-// refreshAccountToken ververst een verlopen token en geeft het nieuwe terug
+// refreshAccountToken (AANGEPAST met Optimalisatie 2)
 func (w *Worker) refreshAccountToken(ctx context.Context, expiredToken *oauth2.Token) (*oauth2.Token, error) {
 	ts := w.googleOAuthConfig.TokenSource(ctx, expiredToken)
 
 	newToken, err := ts.Token()
 	if err != nil {
-		return nil, fmt.Errorf("could not refresh token (access possibly revoked): %w", err)
+		// --- OPTIMALISATIE 2: Vang 'invalid_grant' ---
+		// Dit gebeurt als de gebruiker de toegang intrekt
+		if strings.Contains(err.Error(), "invalid_grant") {
+			return nil, ErrTokenRevoked
+		}
+		// --- EINDE OPTIMALISATIE 2 ---
+		return nil, fmt.Errorf("could not refresh token: %w", err)
+	}
+
+	// Als we GEEN nieuwe refresh token krijgen, hergebruik dan de oude
+	if newToken.RefreshToken == "" {
+		newToken.RefreshToken = expiredToken.RefreshToken
 	}
 
 	return newToken, nil
 }
 
-// processCalendarEvents (AANGEPAST voor shift automation logica)
+// eventExists controleert of een event met dezelfde titel al bestaat in de tijdsslot
+func eventExists(srv *calendar.Service, start, end time.Time, title string) bool {
+	// Zoek in een iets ruimer venster om afrondingsfouten te vangen
+	timeMin := start.Add(-1 * time.Minute).Format(time.RFC3339)
+	timeMax := end.Add(1 * time.Minute).Format(time.RFC3339)
+
+	events, err := srv.Events.List("primary").
+		TimeMin(timeMin).
+		TimeMax(timeMax).
+		SingleEvents(true).
+		Do()
+
+	if err != nil {
+		log.Printf("[Worker] ERROR checking for existing event: %v", err)
+		// Veilige aanname: ga ervan uit dat het niet bestaat
+		return false
+	}
+
+	for _, item := range events.Items {
+		// Controleer op exacte titel-match
+		if item.Summary == title {
+			return true
+		}
+	}
+
+	return false
+}
+
+// processCalendarEvents (AANGEPAST met Optimalisatie 1: Logging)
 func (w *Worker) processCalendarEvents(ctx context.Context, acc domain.ConnectedAccount, token *oauth2.Token) error {
 
 	client := w.googleOAuthConfig.Client(ctx, token)
@@ -182,11 +236,11 @@ func (w *Worker) processCalendarEvents(ctx context.Context, acc domain.Connected
 		return fmt.Errorf("could not create calendar service: %w", err)
 	}
 
-	// Real-time monitoring: Check alle events voor komende jaar
+	// Aangepast: Check 3 maanden vooruit.
 	tMin := time.Now().Format(time.RFC3339)
-	tMax := time.Now().AddDate(1, 0, 0).Format(time.RFC3339) // 1 jaar vooruit
+	tMax := time.Now().AddDate(0, 3, 0).Format(time.RFC3339) // 3 maanden vooruit
 
-	log.Printf("[Worker] Real-time monitoring: Fetching calendar events for %s between %s and %s", acc.Email, tMin, tMax)
+	log.Printf("[Worker] Fetching calendar events for %s between %s and %s", acc.Email, tMin, tMax)
 
 	events, err := srv.Events.List("primary").
 		TimeMin(tMin).
@@ -203,106 +257,200 @@ func (w *Worker) processCalendarEvents(ctx context.Context, acc domain.Connected
 		return fmt.Errorf("could not fetch automation rules: %w", err)
 	}
 
-	if len(events.Items) > 0 {
-		log.Printf("[Worker] FOUND %d UPCOMING EVENTS FOR %s!", len(events.Items), acc.Email)
-		log.Printf("[Worker] Account has %d rules to check against.", len(rules))
+	if len(events.Items) == 0 || len(rules) == 0 {
+		log.Printf("[Worker] No upcoming events or no rules found for %s. Skipping.", acc.Email)
+		return nil
+	}
 
-		for _, event := range events.Items {
-			for _, rule := range rules {
-				var trigger domain.TriggerConditions
-				if err := json.Unmarshal(rule.TriggerConditions, &trigger); err != nil {
-					log.Printf("[Worker] ERROR unmarshaling trigger for rule %s: %v", rule.ID, err)
-					continue
-				}
+	log.Printf("[Worker] Checking %d events against %d rules for %s...", len(events.Items), len(rules), acc.Email)
 
-				var action domain.ActionParams
-				if err := json.Unmarshal(rule.ActionParams, &action); err != nil {
-					log.Printf("[Worker] ERROR unmarshaling action for rule %s: %v", rule.ID, err)
-					continue
-				}
+	for _, event := range events.Items {
 
-				// Check trigger: exact summary match (nieuw voor "Dienst")
-				if trigger.SummaryEquals != "" && event.Summary != trigger.SummaryEquals {
-					continue
-				}
-
-				// Fallback op contains als exact niet gebruikt
-				matched := false
-				if len(trigger.SummaryContains) > 0 {
-					for _, contain := range trigger.SummaryContains {
-						if strings.Contains(event.Summary, contain) {
-							matched = true
-							break
-						}
-					}
-					if !matched {
-						continue
-					}
-				} else if trigger.SummaryEquals == "" {
-					continue // Geen trigger gedefinieerd
-				}
-
-				log.Printf("[Worker] MATCH: Event '%s' matches rule '%s'. Creating reminder...", event.Summary, rule.Name)
-
-				// Parse start time
-				startTime, err := time.Parse(time.RFC3339, event.Start.DateTime)
-				if err != nil {
-					log.Printf("[Worker] ERROR parsing start time: %v", err)
-					continue
-				}
-
-				// Bepaal type (Vroeg/Laat) gebaseerd op startuur
-				shiftType := "Laat"
-				if startTime.Hour() < 12 {
-					shiftType = "Vroeg"
-				}
-
-				// Bepaal team (A/R) gebaseerd op location
-				team := "R"
-				locLower := strings.ToLower(event.Location)
-				if strings.Contains(locLower, "aa") || strings.Contains(locLower, "appartementen") {
-					team = "A"
-				}
-
-				// Title samenstellen
-				title := fmt.Sprintf("%s %s", shiftType, team)
-
-				// Calculate reminder time
-				offset := action.OffsetMinutes
-				if offset == 0 {
-					offset = -60 // Default 1 uur voor
-				}
-				reminderTime := startTime.Add(time.Duration(offset) * time.Minute)
-
-				// Duur (default 5 min)
-				durMin := action.DurationMin
-				if durMin == 0 {
-					durMin = 5
-				}
-				endTime := reminderTime.Add(time.Duration(durMin) * time.Minute)
-
-				// Create new event
-				newEvent := &calendar.Event{
-					Summary: title,
-					Start: &calendar.EventDateTime{
-						DateTime: reminderTime.Format(time.RFC3339),
-					},
-					End: &calendar.EventDateTime{
-						DateTime: endTime.Format(time.RFC3339),
-					},
-				}
-
-				createdEvent, err := srv.Events.Insert("primary", newEvent).Do()
-				if err != nil {
-					log.Printf("[Worker] ERROR creating reminder event: %v", err)
-					continue
-				}
-
-				log.Printf("[Worker] Created reminder event '%s' at %s: %s", title, reminderTime, createdEvent.Id)
-			}
+		// Voorkom dat we reageren op onze eigen aangemaakte events
+		if strings.HasPrefix(event.Description, "Automatische reminder voor:") {
+			continue
 		}
-	} else {
-		log.Printf("[Worker] No upcoming events found for %s.", acc.Email)
+
+		for _, rule := range rules {
+			var trigger domain.TriggerConditions
+			if err := json.Unmarshal(rule.TriggerConditions, &trigger); err != nil {
+				log.Printf("[Worker] ERROR unmarshaling trigger for rule %s: %v", rule.ID, err)
+				continue
+			}
+
+			// --- 1. CHECK TRIGGERS ---
+			summaryMatch := false
+			if trigger.SummaryEquals != "" && event.Summary == trigger.SummaryEquals {
+				summaryMatch = true
+			}
+			if !summaryMatch && len(trigger.SummaryContains) > 0 {
+				for _, contain := range trigger.SummaryContains {
+					if strings.Contains(event.Summary, contain) {
+						summaryMatch = true
+						break
+					}
+				}
+			}
+			if !summaryMatch {
+				continue
+			}
+
+			locationMatch := false
+			if len(trigger.LocationContains) == 0 {
+				locationMatch = true
+			} else {
+				eventLocationLower := strings.ToLower(event.Location)
+				for _, loc := range trigger.LocationContains {
+					if strings.Contains(eventLocationLower, strings.ToLower(loc)) {
+						locationMatch = true
+						break
+					}
+				}
+			}
+			if !locationMatch {
+				continue
+			}
+
+			// --- 1.5. CHECK LOGS (OPTIMALISATIE 1) ---
+			// Sla de rest over als we deze trigger event al succesvol hebben verwerkt.
+			// Dit voorkomt dubbel werk en onnodige eventExists API calls.
+			hasLogged, err := w.store.HasLogForTrigger(ctx, rule.ID, event.Id)
+			if err != nil {
+				log.Printf("[Worker] ERROR checking logs for event %s / rule %s: %v", event.Id, rule.ID, err)
+				// Ga door (veilige aanname), de eventExists check vangt het wel
+			}
+			if hasLogged {
+				// log.Printf("[Worker] SKIP: Trigger event %s already processed by rule %s.", event.Id, rule.ID)
+				continue // Ga naar de volgende regel
+			}
+			// --- EINDE OPTIMALISATIE 1.5 ---
+
+			// --- 2. VOER ACTIE UIT ---
+			log.Printf("[Worker] MATCH: Event '%s' (ID: %s) matches rule '%s'.", event.Summary, event.Id, rule.Name)
+
+			var action domain.ActionParams
+			if err := json.Unmarshal(rule.ActionParams, &action); err != nil {
+				log.Printf("[Worker] ERROR unmarshaling action for rule %s: %v", rule.ID, err)
+				continue
+			}
+
+			if action.NewEventTitle == "" {
+				log.Printf("[Worker] ERROR: Rule %s heeft geen 'new_event_title'.", rule.ID)
+				continue
+			}
+
+			startTime, err := time.Parse(time.RFC3339, event.Start.DateTime)
+			if err != nil {
+				log.Printf("[Worker] ERROR parsing start time: %v", err)
+				continue
+			}
+
+			offset := action.OffsetMinutes
+			if offset == 0 {
+				offset = -60
+			}
+			reminderTime := startTime.Add(time.Duration(offset) * time.Minute)
+
+			durMin := action.DurationMin
+			if durMin == 0 {
+				durMin = 5
+			}
+			endTime := reminderTime.Add(time.Duration(durMin) * time.Minute)
+
+			title := action.NewEventTitle
+
+			// --- 3. CONTROLEER OP DUPLICATEN (SECUNDAIRE CHECK) ---
+			if eventExists(srv, reminderTime, endTime, title) {
+				log.Printf("[Worker] SKIP: Reminder event '%s' at %s already exists.", title, reminderTime)
+
+				// --- 3.1. LOG DIT VOOR DE VOLGENDE KEER (OPTIMALISATIE 1) ---
+				// We vonden geen log (stap 1.5), maar het event bestaat wel (stap 3).
+				// We loggen het nu alsnog om toekomstige API-checks te voorkomen.
+				triggerDetailsJSON, _ := json.Marshal(domain.TriggerLogDetails{
+					GoogleEventID:  event.Id,
+					TriggerSummary: event.Summary,
+					TriggerTime:    startTime,
+				})
+				actionDetailsJSON, _ := json.Marshal(domain.ActionLogDetails{
+					CreatedEventID:      "unknown-pre-existing",
+					CreatedEventSummary: title,
+					ReminderTime:        reminderTime,
+				})
+				logParams := store.CreateLogParams{
+					ConnectedAccountID: acc.ID,
+					RuleID:             rule.ID,
+					Status:             domain.LogSkipped, // We skippen, want het bestond al
+					TriggerDetails:     triggerDetailsJSON,
+					ActionDetails:      actionDetailsJSON,
+				}
+				if err := w.store.CreateAutomationLog(ctx, logParams); err != nil {
+					log.Printf("[Worker] ERROR saving skip log for rule %s: %v", rule.ID, err)
+				}
+				continue
+			}
+
+			// --- 4. MAAK EVENT AAN ---
+			newEvent := &calendar.Event{
+				Summary: title,
+				Start: &calendar.EventDateTime{
+					DateTime: reminderTime.Format(time.RFC3339),
+					TimeZone: event.Start.TimeZone,
+				},
+				End: &calendar.EventDateTime{
+					DateTime: endTime.Format(time.RFC3339),
+					TimeZone: event.End.TimeZone,
+				},
+				Description: fmt.Sprintf("Automatische reminder voor: %s\nGemaakt door regel: %s", event.Summary, rule.Name),
+			}
+
+			createdEvent, err := srv.Events.Insert("primary", newEvent).Do()
+			if err != nil {
+				log.Printf("[Worker] ERROR creating reminder event: %v", err)
+
+				// --- 4.1 LOG FAILURE (OPTIMALISATIE 1) ---
+				triggerDetailsJSON, _ := json.Marshal(domain.TriggerLogDetails{
+					GoogleEventID:  event.Id,
+					TriggerSummary: event.Summary,
+					TriggerTime:    startTime,
+				})
+				logParams := store.CreateLogParams{
+					ConnectedAccountID: acc.ID,
+					RuleID:             rule.ID,
+					Status:             domain.LogFailure,
+					TriggerDetails:     triggerDetailsJSON,
+					ErrorMessage:       err.Error(),
+				}
+				if err := w.store.CreateAutomationLog(ctx, logParams); err != nil {
+					log.Printf("[Worker] ERROR saving failure log for rule %s: %v", rule.ID, err)
+				}
+				continue
+			}
+
+			// --- 5. LOG SUCCESS (OPTIMALISATIE 1) ---
+			triggerDetailsJSON, _ := json.Marshal(domain.TriggerLogDetails{
+				GoogleEventID:  event.Id,
+				TriggerSummary: event.Summary,
+				TriggerTime:    startTime,
+			})
+			actionDetailsJSON, _ := json.Marshal(domain.ActionLogDetails{
+				CreatedEventID:      createdEvent.Id,
+				CreatedEventSummary: createdEvent.Summary,
+				ReminderTime:        reminderTime,
+			})
+
+			logParams := store.CreateLogParams{
+				ConnectedAccountID: acc.ID,
+				RuleID:             rule.ID,
+				Status:             domain.LogSuccess,
+				TriggerDetails:     triggerDetailsJSON,
+				ActionDetails:      actionDetailsJSON,
+			}
+			if err := w.store.CreateAutomationLog(ctx, logParams); err != nil {
+				log.Printf("[Worker] ERROR saving success log for rule %s: %v", rule.ID, err)
+			}
+
+			log.Printf("[Worker] SUCCESS: Created reminder '%s' (ID: %s) for event '%s' (ID: %s)", createdEvent.Summary, createdEvent.Id, event.Summary, event.Id)
+		}
 	}
 
 	return nil

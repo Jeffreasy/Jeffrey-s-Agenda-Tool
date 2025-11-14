@@ -11,37 +11,68 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/go-chi/chi/v5" // NIEUWE IMPORT
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	oauth2v2 "google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
 )
 
-// --- NIEUWE AUTH HANDLERS ---
+// --- AUTH HANDLERS ---
 
 const oauthStateCookieName = "oauthstate"
+
+// NIEUWE HELPER: Haalt de user ID op die door de middleware in de context is gezet
+func getUserIDFromContext(ctx context.Context) (uuid.UUID, error) {
+	userID, ok := ctx.Value(userContextKey).(uuid.UUID)
+	if !ok {
+		return uuid.Nil, fmt.Errorf("missing or invalid user ID in context")
+	}
+	return userID, nil
+}
+
+// generateJWT creëert een nieuw JWT token voor een gebruiker
+func generateJWT(userID uuid.UUID) (string, error) {
+	jwtKey := []byte(os.Getenv("JWT_SECRET_KEY"))
+	if len(jwtKey) == 0 {
+		return "", fmt.Errorf("JWT_SECRET_KEY is niet ingesteld")
+	}
+
+	claims := jwt.MapClaims{
+		"user_id": userID.String(),
+		"iss":     "agenda-automator-api",
+		"iat":     time.Now().Unix(),
+		"exp":     time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 dagen geldig
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		return "", fmt.Errorf("kon token niet ondertekenen: %w", err)
+	}
+
+	return tokenString, nil
+}
 
 // handleGoogleLogin start de OAuth-flow
 func (s *Server) handleGoogleLogin() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Genereer een veilige 'state' token (tegen CSRF)
 		b := make([]byte, 32)
 		rand.Read(b)
 		state := base64.URLEncoding.EncodeToString(b)
 
-		// 2. Sla de 'state' op in een cookie
 		cookie := &http.Cookie{
 			Name:     oauthStateCookieName,
 			Value:    state,
 			Path:     "/",
 			HttpOnly: true,
-			MaxAge:   60 * 10, // 10 minuten
+			MaxAge:   60 * 10,
 		}
 		http.SetCookie(w, cookie)
 
-		// 3. Stuur de gebruiker door naar de Google consent pagina
-		// 'Offline' en 'ApprovalForce' om altijd refresh_token te krijgen
 		authURL := s.googleOAuthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 		http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
 	}
@@ -52,7 +83,6 @@ func (s *Server) handleGoogleCallback() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		// 1. Controleer de 'state' token uit de cookie
 		stateCookie, err := r.Cookie(oauthStateCookieName)
 		if err != nil {
 			WriteJSONError(w, http.StatusBadRequest, "Geen state cookie")
@@ -63,7 +93,6 @@ func (s *Server) handleGoogleCallback() http.HandlerFunc {
 			return
 		}
 
-		// 2. Haal de 'code' uit de URL en wissel hem in voor tokens
 		code := r.URL.Query().Get("code")
 		token, err := s.googleOAuthConfig.Exchange(ctx, code)
 		if err != nil {
@@ -75,21 +104,18 @@ func (s *Server) handleGoogleCallback() http.HandlerFunc {
 			return
 		}
 
-		// 3. Haal de profielinformatie van de gebruiker op
 		userInfo, err := getUserInfo(ctx, token)
 		if err != nil {
 			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon gebruikersinfo niet ophalen: %s", err.Error()))
 			return
 		}
 
-		// 4. Vind of maak de gebruiker aan in onze DB
 		user, err := s.store.CreateUser(ctx, userInfo.Email, userInfo.Name)
 		if err != nil {
 			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon gebruiker niet aanmaken: %s", err.Error()))
 			return
 		}
 
-		// 5. Sla de nieuwe tokens veilig op (upsert)
 		params := store.UpsertConnectedAccountParams{
 			UserID:         user.ID,
 			Provider:       domain.ProviderGoogle,
@@ -109,8 +135,14 @@ func (s *Server) handleGoogleCallback() http.HandlerFunc {
 
 		log.Printf("Account %s gekoppeld voor user %s", account.ID, user.ID)
 
-		// 6. Stuur de gebruiker terug naar de frontend
-		http.Redirect(w, r, os.Getenv("CLIENT_BASE_URL")+"/dashboard?success=true", http.StatusSeeOther)
+		jwtString, err := generateJWT(user.ID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon authenticatie-token niet genereren: %s", err.Error()))
+			return
+		}
+
+		redirectURL := fmt.Sprintf("%s/dashboard?token=%s", os.Getenv("CLIENT_BASE_URL"), jwtString)
+		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	}
 }
 
@@ -160,9 +192,8 @@ func (s *Server) handleCreateUser() http.HandlerFunc {
 	}
 }
 
-// --- CreateConnectedAccount (Verwijderd, want overbodig na callback upsert) ---
+// --- handleCreateAutomationRule (Bestaande code) ---
 
-// Voeg endpoint toe voor rules creatie (nieuw)
 type CreateAutomationRuleRequest struct {
 	ConnectedAccountID uuid.UUID       `json:"connected_account_id"`
 	Name               string          `json:"name"`
@@ -172,14 +203,30 @@ type CreateAutomationRuleRequest struct {
 
 func (s *Server) handleCreateAutomationRule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker (uit de context)
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			return
+		}
+
+		// 2. Decodeer de request body
 		var req CreateAutomationRuleRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			WriteJSONError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
+		// 3. (KRITIEK) Controleer of deze gebruiker wel de eigenaar is van het account
+		if err := s.store.VerifyAccountOwnership(r.Context(), req.ConnectedAccountID, userID); err != nil {
+			log.Printf("Forbidden access attempt: User %s tried to access account %s", userID, req.ConnectedAccountID)
+			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot dit account")
+			return
+		}
+
+		// 4. Ga door met het aanmaken van de regel (nu veilig)
 		params := store.CreateAutomationRuleParams{
-			ConnectedAccountID: req.ConnectedAccountID,
+			ConnectedAccountID: req.ConnectedAccountID, // We weten nu dat dit ID veilig is
 			Name:               req.Name,
 			TriggerConditions:  req.TriggerConditions,
 			ActionParams:       req.ActionParams,
@@ -187,10 +234,95 @@ func (s *Server) handleCreateAutomationRule() http.HandlerFunc {
 
 		rule, err := s.store.CreateAutomationRule(r.Context(), params)
 		if err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, "Could not create rule")
+			WriteJSONError(w, http.StatusInternalServerError, "Kon regel niet aanmaken")
 			return
 		}
 
 		WriteJSON(w, http.StatusCreated, rule)
+	}
+}
+
+// --- NIEUWE READ HANDLERS ---
+
+// handleGetConnectedAccounts haalt alle accounts op voor de ingelogde gebruiker
+func (s *Server) handleGetConnectedAccounts() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			return
+		}
+
+		// 2. Haal de accounts op uit de store
+		accounts, err := s.store.GetAccountsForUser(r.Context(), userID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon accounts niet ophalen")
+			return
+		}
+
+		// 3. (BELANGRIJK) Verberg de versleutelde tokens voordat we ze terugsturen.
+		// We willen nooit access/refresh tokens (zelfs versleuteld) naar de client sturen.
+		type PublicAccount struct {
+			ID             uuid.UUID            `json:"id"`
+			UserID         uuid.UUID            `json:"user_id"`
+			Provider       domain.ProviderType  `json:"provider"`
+			Email          string               `json:"email"`
+			Status         domain.AccountStatus `json:"status"`
+			ProviderUserID string               `json:"provider_user_id"`
+			CreatedAt      time.Time            `json:"created_at"`
+		}
+
+		publicAccounts := make([]PublicAccount, len(accounts))
+		for i, acc := range accounts {
+			publicAccounts[i] = PublicAccount{
+				ID:             acc.ID,
+				UserID:         acc.UserID,
+				Provider:       acc.Provider,
+				Email:          acc.Email,
+				Status:         acc.Status,
+				ProviderUserID: acc.ProviderUserID,
+				CreatedAt:      acc.CreatedAt,
+			}
+		}
+
+		WriteJSON(w, http.StatusOK, publicAccounts)
+	}
+}
+
+// handleGetAutomationRules haalt alle regels op voor een specifiek, eigendom
+func (s *Server) handleGetAutomationRules() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			return
+		}
+
+		// 2. Haal de 'accountID' op uit de URL path (e.g. /accounts/uuid-hier/rules)
+		accountIDStr := chi.URLParam(r, "accountID")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID formaat")
+			return
+		}
+
+		// 3. (KRITIEK) Controleer eigendom
+		if err := s.store.VerifyAccountOwnership(r.Context(), accountID, userID); err != nil {
+			log.Printf("Forbidden access attempt: User %s tried to access rules for account %s", userID, accountID)
+			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot dit account")
+			return
+		}
+
+		// 4. Haal de regels op (nu veilig)
+		rules, err := s.store.GetRulesForAccount(r.Context(), accountID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon regels niet ophalen")
+			return
+		}
+
+		// De 'rules' struct bevat geen geheimen, dus we kunnen het direct teruggeven.
+		WriteJSON(w, http.StatusOK, rules)
 	}
 }

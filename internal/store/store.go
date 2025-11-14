@@ -5,10 +5,12 @@ import (
 	"agenda-automator-api/internal/domain"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -16,14 +18,19 @@ import (
 type Storer interface {
 	CreateUser(ctx context.Context, email, name string) (domain.User, error)
 
-	UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error) // Aangepast naar Upsert
+	UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error)
 	GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (domain.ConnectedAccount, error)
 	GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAccount, error)
+	GetAccountsForUser(ctx context.Context, userID uuid.UUID) ([]domain.ConnectedAccount, error) // NIEUWE FUNCTIE
 	UpdateAccountTokens(ctx context.Context, arg UpdateAccountTokensParams) error
-	UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error // NIEUW
+	UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error
+	UpdateAccountStatus(ctx context.Context, id uuid.UUID, status domain.AccountStatus) error
+	VerifyAccountOwnership(ctx context.Context, accountID uuid.UUID, userID uuid.UUID) error
 
-	CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) // NIEUW
+	CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error)
 	GetRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.AutomationRule, error)
+	CreateAutomationLog(ctx context.Context, arg CreateLogParams) error
+	HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error)
 }
 
 // DBStore implementeert de Storer interface.
@@ -88,7 +95,6 @@ type UpdateAccountTokensParams struct {
 // UpsertConnectedAccount versleutelt de tokens en slaat het account op (upsert)
 func (s *DBStore) UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error) {
 
-	// Encrypt de tokens
 	encryptedAccessToken, err := crypto.Encrypt([]byte(arg.AccessToken))
 	if err != nil {
 		return domain.ConnectedAccount{}, fmt.Errorf("could not encrypt access token: %w", err)
@@ -102,7 +108,6 @@ func (s *DBStore) UpsertConnectedAccount(ctx context.Context, arg UpsertConnecte
 		}
 	}
 
-	// Definieer de SQL Query met upsert
 	query := `
     INSERT INTO connected_accounts (
         user_id, provider, email, provider_user_id,
@@ -233,7 +238,7 @@ func (s *DBStore) UpdateAccountTokens(ctx context.Context, arg UpdateAccountToke
 	return nil
 }
 
-// NIEUW: UpdateAccountLastChecked
+// UpdateAccountLastChecked
 func (s *DBStore) UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error {
 	query := `
     UPDATE connected_accounts
@@ -249,7 +254,7 @@ func (s *DBStore) UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) er
 	return nil
 }
 
-// GetActiveAccounts haalt alle accounts op die de worker moet controleren (real-time monitoring)
+// GetActiveAccounts haalt alle accounts op die de worker moet controleren
 func (s *DBStore) GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAccount, error) {
 	query := `
     SELECT id, user_id, provider, email, provider_user_id,
@@ -257,7 +262,7 @@ func (s *DBStore) GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAcco
            created_at, updated_at, last_checked
     FROM connected_accounts
     WHERE status = 'active';
-    ` // Real-time: Check alle actieve accounts elke keer
+    `
 
 	rows, err := s.pool.Query(ctx, query)
 	if err != nil {
@@ -296,7 +301,78 @@ func (s *DBStore) GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAcco
 	return accounts, nil
 }
 
-// CreateAutomationRuleParams (nieuw)
+// --- NIEUWE READ FUNCTIE ---
+// GetAccountsForUser haalt alle accounts op die eigendom zijn van een specifieke gebruiker
+func (s *DBStore) GetAccountsForUser(ctx context.Context, userID uuid.UUID) ([]domain.ConnectedAccount, error) {
+	query := `
+    SELECT id, user_id, provider, email, provider_user_id,
+           access_token, refresh_token, token_expiry, scopes, status,
+           created_at, updated_at, last_checked
+    FROM connected_accounts
+    WHERE user_id = $1
+    ORDER BY created_at DESC;
+    `
+
+	rows, err := s.pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("db query error: %w", err)
+	}
+	defer rows.Close()
+
+	var accounts []domain.ConnectedAccount
+	for rows.Next() {
+		var acc domain.ConnectedAccount
+		err := rows.Scan(
+			&acc.ID,
+			&acc.UserID,
+			&acc.Provider,
+			&acc.Email,
+			&acc.ProviderUserID,
+			&acc.AccessToken,
+			&acc.RefreshToken,
+			&acc.TokenExpiry,
+			&acc.Scopes,
+			&acc.Status,
+			&acc.CreatedAt,
+			&acc.UpdatedAt,
+			&acc.LastChecked,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("db row scan error: %w", err)
+		}
+		accounts = append(accounts, acc)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db rows error: %w", err)
+	}
+
+	return accounts, nil
+}
+
+// --- AUTH FUNCTIE ---
+// VerifyAccountOwnership controleert of een gebruiker eigenaar is van een account
+func (s *DBStore) VerifyAccountOwnership(ctx context.Context, accountID uuid.UUID, userID uuid.UUID) error {
+	query := `
+    SELECT 1 
+    FROM connected_accounts
+    WHERE id = $1 AND user_id = $2
+    LIMIT 1;
+    `
+	var exists int
+	err := s.pool.QueryRow(ctx, query, accountID, userID).Scan(&exists)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("forbidden: account not found or does not belong to user")
+		}
+		return fmt.Errorf("db query error: %w", err)
+	}
+
+	return nil
+}
+
+// CreateAutomationRuleParams
 type CreateAutomationRuleParams struct {
 	ConnectedAccountID uuid.UUID
 	Name               string
@@ -304,7 +380,7 @@ type CreateAutomationRuleParams struct {
 	ActionParams       json.RawMessage // []byte
 }
 
-// CreateAutomationRule (nieuw)
+// CreateAutomationRule
 func (s *DBStore) CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) {
 	query := `
     INSERT INTO automation_rules (
@@ -380,4 +456,72 @@ func (s *DBStore) GetRulesForAccount(ctx context.Context, accountID uuid.UUID) (
 	}
 
 	return rules, nil
+}
+
+// --- OPTIMALISATIE 2: ERROR HANDLING ---
+func (s *DBStore) UpdateAccountStatus(ctx context.Context, id uuid.UUID, status domain.AccountStatus) error {
+	query := `
+    UPDATE connected_accounts
+    SET status = $1, updated_at = now()
+    WHERE id = $2;
+    `
+	_, err := s.pool.Exec(ctx, query, status, id)
+	if err != nil {
+		return fmt.Errorf("db exec error: %w", err)
+	}
+	return nil
+}
+
+// --- OPTIMALISATIE 1: LOGGING PARAMS ---
+type CreateLogParams struct {
+	ConnectedAccountID uuid.UUID
+	RuleID             uuid.UUID
+	Status             domain.AutomationLogStatus
+	TriggerDetails     json.RawMessage // []byte
+	ActionDetails      json.RawMessage // []byte
+	ErrorMessage       string
+}
+
+// --- OPTIMALISATIE 1: LOGGING ---
+func (s *DBStore) CreateAutomationLog(ctx context.Context, arg CreateLogParams) error {
+	query := `
+    INSERT INTO automation_logs (
+        connected_account_id, rule_id, status, trigger_details, action_details, error_message
+    ) VALUES ($1, $2, $3, $4, $5, $6);
+    `
+	_, err := s.pool.Exec(ctx, query,
+		arg.ConnectedAccountID,
+		arg.RuleID,
+		arg.Status,
+		arg.TriggerDetails,
+		arg.ActionDetails,
+		arg.ErrorMessage,
+	)
+	if err != nil {
+		return fmt.Errorf("db exec error: %w", err)
+	}
+	return nil
+}
+
+// --- OPTIMALISATIE 1: EFFICIENCY CHECK ---
+func (s *DBStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error) {
+	query := `
+    SELECT 1
+    FROM automation_logs
+    WHERE rule_id = $1
+      AND status = 'success'
+      AND trigger_details->>'google_event_id' = $2
+    LIMIT 1;
+    `
+	var exists int
+	err := s.pool.QueryRow(ctx, query, ruleID, triggerEventID).Scan(&exists)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil // Geen log gevonden, dit is geen error
+		}
+		return false, fmt.Errorf("db query error: %w", err) // Een échte error
+	}
+
+	return true, nil // Gevonden
 }

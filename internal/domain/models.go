@@ -79,14 +79,28 @@ type AutomationLog struct {
 	ErrorMessage       string              `db:"error_message"`   // pgx mapt 'NULL' text naar ""
 }
 
-// NIEUW: Aangepaste structs voor JSONB met meer flexibiliteit voor shift automation
+// Aangepaste structs voor JSONB met meer flexibiliteit voor shift automation
 type TriggerConditions struct {
-	SummaryEquals   string   `json:"summary_equals"`   // Bijv. "Dienst" voor exact match
-	SummaryContains []string `json:"summary_contains"` // Optioneel fallback voor contains
+	SummaryEquals    string   `json:"summary_equals,omitempty"`
+	SummaryContains  []string `json:"summary_contains,omitempty"`
+	LocationContains []string `json:"location_contains,omitempty"`
 }
 
 type ActionParams struct {
 	OffsetMinutes int    `json:"offset_minutes"` // Bijv. -60 voor 1 uur voor shift
-	TitlePrefix   string `json:"title_prefix"`   // Niet gebruikt; logica bepaalt title
-	DurationMin   int    `json:"duration_min"`   // Bijv. 5 voor reminder duur
+	NewEventTitle string `json:"new_event_title"`
+	DurationMin   int    `json:"duration_min"` // Bijv. 5 voor reminder duur
+}
+
+// --- OPTIMALISATIE: Structs voor JSONB Logging ---
+type TriggerLogDetails struct {
+	GoogleEventID  string    `json:"google_event_id"`
+	TriggerSummary string    `json:"trigger_summary"`
+	TriggerTime    time.Time `json:"trigger_time"`
+}
+
+type ActionLogDetails struct {
+	CreatedEventID      string    `json:"created_event_id"`
+	CreatedEventSummary string    `json:"created_event_summary"`
+	ReminderTime        time.Time `json:"reminder_time"`
 }
