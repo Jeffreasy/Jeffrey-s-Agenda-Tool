@@ -1,25 +1,34 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TYPE provider_type AS ENUM (
-    'google',
-    'microsoft'
-);
+-- Maak ENUM types alleen aan als ze nog niet bestaan
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'provider_type') THEN
+        CREATE TYPE provider_type AS ENUM (
+            'google',
+            'microsoft'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_status') THEN
+        CREATE TYPE account_status AS ENUM (
+            'active',
+            'revoked',
+            'error',
+            'paused'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'automation_log_status') THEN
+        CREATE TYPE automation_log_status AS ENUM (
+            'pending',
+            'success',
+            'failure',
+            'skipped'
+        );
+    END IF;
+END$$;
 
-CREATE TYPE account_status AS ENUM (
-    'active',
-    'revoked',
-    'error',
-    'paused'
-);
-
-CREATE TYPE automation_log_status AS ENUM (
-    'pending',
-    'success',
-    'failure',
-    'skipped'
-);
-
-CREATE TABLE users (
+-- Maak tabellen alleen aan als ze nog niet bestaan
+CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     email text NOT NULL UNIQUE CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
     name text,
@@ -27,7 +36,7 @@ CREATE TABLE users (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE connected_accounts (
+CREATE TABLE IF NOT EXISTS connected_accounts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     provider provider_type NOT NULL,
@@ -43,9 +52,9 @@ CREATE TABLE connected_accounts (
     last_checked timestamptz,
     UNIQUE (user_id, provider, provider_user_id)
 );
-CREATE INDEX idx_connected_accounts_user_id ON connected_accounts(user_id);
+CREATE INDEX IF NOT EXISTS idx_connected_accounts_user_id ON connected_accounts(user_id);
 
-CREATE TABLE automation_rules (
+CREATE TABLE IF NOT EXISTS automation_rules (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     connected_account_id uuid NOT NULL REFERENCES connected_accounts(id) ON DELETE CASCADE,
     name text NOT NULL,
@@ -55,9 +64,9 @@ CREATE TABLE automation_rules (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_automation_rules_account_id ON automation_rules(connected_account_id) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_automation_rules_account_id ON automation_rules(connected_account_id) WHERE is_active = true;
 
-CREATE TABLE automation_logs (
+CREATE TABLE IF NOT EXISTS automation_logs (
     id bigserial PRIMARY KEY,
     connected_account_id uuid NOT NULL REFERENCES connected_accounts(id) ON DELETE CASCADE,
     rule_id uuid REFERENCES automation_rules(id) ON DELETE SET NULL,
@@ -67,5 +76,5 @@ CREATE TABLE automation_logs (
     action_details jsonb,
     error_message text
 );
-CREATE INDEX idx_automation_logs_account_id_timestamp ON automation_logs(connected_account_id, timestamp DESC);
-CREATE INDEX idx_automation_logs_rule_id ON automation_logs(rule_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_automation_logs_account_id_timestamp ON automation_logs(connected_account_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_automation_logs_rule_id ON automation_logs(rule_id, timestamp DESC);

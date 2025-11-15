@@ -41,22 +41,30 @@
 package main
 
 import (
+	"context"
+	// _ "embed" // <-- VERWIJDERD
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
-	// NIEUW voor CORS
 	// Interne packages
 	"agenda-automator-api/internal/api"
 	"agenda-automator-api/internal/database"
 	"agenda-automator-api/internal/store"
 	"agenda-automator-api/internal/worker"
 
+	"agenda-automator-api/db/migrations" // <-- TOEGEVOEGD
+
 	// Externe packages
 	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
+
+// VERWIJDERD:
+// //go:embed"../db/migrations/000001_initial_schema.up.sql"
+// var migrationFile string
 
 func main() {
 	// 1. Laad configuratie (.env)
@@ -68,6 +76,21 @@ func main() {
 		log.Fatalf("Could not connect to the database: %v", err)
 	}
 	defer pool.Close()
+
+	// -----------------------------------------------------
+	// AANGEPAST: Stap 2.5 - Voer migraties uit
+	run := os.Getenv("RUN_MIGRATIONS")
+	if strings.ToLower(run) == "true" {
+		log.Println("Running database migrations...")
+		// Gebruik de variabele uit de 'migrations' package:
+		if _, err := pool.Exec(context.Background(), migrations.InitialSchemaUp); err != nil {
+			log.Fatalf("Database migrations failed: %v", err)
+		}
+		log.Println("Database migrations applied successfully.")
+	} else {
+		log.Println("Skipping migrations (RUN_MIGRATIONS is not 'true')")
+	}
+	// -----------------------------------------------------
 
 	// 3. Initialiseer de Gedeelde OAuth2 Config
 	clientID := os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
@@ -119,19 +142,36 @@ func main() {
 }
 
 
+
+
+
+
+
+
+
+
 ## db/migrations/000001_initial_schema.down.sql
 -- Rollback initial schema migration
--- Add DROP statements in reverse order here
 
--- Example (replace with your actual rollback statements):
--- DROP TABLE IF EXISTS automation_logs;
--- DROP TABLE IF EXISTS automation_rules;
--- DROP TABLE IF EXISTS connected_accounts;
--- DROP TABLE IF EXISTS users;
+DROP INDEX IF EXISTS idx_automation_logs_rule_id;
+DROP INDEX IF EXISTS idx_automation_logs_account_id_timestamp;
+DROP TABLE IF EXISTS automation_logs;
 
--- DROP TYPE IF EXISTS automation_status;
--- DROP TYPE IF EXISTS account_status;
--- DROP TYPE IF EXISTS provider_type;
+DROP INDEX IF EXISTS idx_automation_rules_account_id;
+DROP TABLE IF EXISTS automation_rules;
+
+DROP INDEX IF EXISTS idx_connected_accounts_user_id;
+DROP TABLE IF EXISTS connected_accounts;
+
+DROP TABLE IF EXISTS users;
+
+DROP TYPE IF EXISTS automation_log_status;
+DROP TYPE IF EXISTS account_status;
+DROP TYPE IF EXISTS provider_type;
+
+
+
+
 
 ## db/migrations/000001_initial_schema.up.sql
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -205,6 +245,37 @@ CREATE TABLE automation_logs (
 );
 CREATE INDEX idx_automation_logs_account_id_timestamp ON automation_logs(connected_account_id, timestamp DESC);
 CREATE INDEX idx_automation_logs_rule_id ON automation_logs(rule_id, timestamp DESC);
+
+
+
+
+
+
+
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\db\migrations\embed.go
+// db/migrations/embed.go
+
+package migrations
+
+import "embed"
+
+//go:embed 000001_initial_schema.up.sql
+var InitialSchemaUp string
+
+//go:embed 000001_initial_schema.down.sql
+var InitialSchemaDown string
+
+// Optioneel: als je ALLE sql-bestanden als een bestandssysteem wilt:
+//go:embed *.sql
+var SQLFiles embed.FS
+
+
+
+
+
+
+
 
 ## internal/api/handlers.go
 package api
@@ -536,6 +607,108 @@ func (s *Server) handleGetAutomationRules() http.HandlerFunc {
 	}
 }
 
+// --- NIEUWE HANDLER (Feature 1) ---
+
+// PublicAutomationLog is een struct die we veilig kunnen teruggeven aan de client.
+type PublicAutomationLog struct {
+	ID             int64                 `json:"id"`
+	Timestamp      time.Time             `json:"timestamp"`
+	Status         domain.AutomationLogStatus `json:"status"`
+	TriggerDetails json.RawMessage       `json:"trigger_details"`
+	ActionDetails  json.RawMessage       `json:"action_details"`
+	ErrorMessage   string                `json:"error_message"`
+}
+
+// handleGetAutomationLogs haalt de recente logs op voor een account.
+func (s *Server) handleGetAutomationLogs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			return
+		}
+
+		// 2. Haal de 'accountID' op uit de URL path
+		accountIDStr := chi.URLParam(r, "accountID")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID formaat")
+			return
+		}
+
+		// 3. (KRITIEK) Controleer eigendom
+		if err := s.store.VerifyAccountOwnership(r.Context(), accountID, userID); err != nil {
+			log.Printf("Forbidden access attempt: User %s tried to access logs for account %s", userID, accountID)
+			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot dit account")
+			return
+		}
+
+		// 4. Haal de logs op (met een limiet)
+		logs, err := s.store.GetLogsForAccount(r.Context(), accountID, 20) // Limiet op 20
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon logs niet ophalen")
+			return
+		}
+
+		// 5. Converteer naar publieke struct (verbergt interne DB details)
+		publicLogs := make([]PublicAutomationLog, len(logs))
+		for i, log := range logs {
+			publicLogs[i] = PublicAutomationLog{
+				ID:             log.ID,
+				Timestamp:      log.Timestamp,
+				Status:         log.Status,
+				TriggerDetails: log.TriggerDetails, // Is al []byte/json.RawMessage
+				ActionDetails:  log.ActionDetails,
+				ErrorMessage:   log.ErrorMessage,
+			}
+		}
+
+		WriteJSON(w, http.StatusOK, publicLogs)
+	}
+}
+
+// --- NIEUWE HANDLER (Feature 2) ---
+
+// handleDeleteAutomationRule verwijdert een regel.
+func (s *Server) handleDeleteAutomationRule() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			return
+		}
+
+		// 2. Haal de 'ruleID' op uit de URL path
+		ruleIDStr := chi.URLParam(r, "ruleID")
+		ruleID, err := uuid.Parse(ruleIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig regel ID formaat")
+			return
+		}
+
+		// 3. (KRITIEK) Controleer eigendom
+		if err := s.store.VerifyRuleOwnership(r.Context(), ruleID, userID); err != nil {
+			log.Printf("Forbidden access attempt: User %s tried to delete rule %s", userID, ruleID)
+			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot deze regel")
+			return
+		}
+
+		// 4. Verwijder de regel
+		if err := s.store.DeleteRule(r.Context(), ruleID); err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon regel niet verwijderen")
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent) // Stuur 204 No Content terug
+	}
+}
+}
+
+
+
+
 
 
 
@@ -563,6 +736,12 @@ func WriteJSON(w http.ResponseWriter, status int, data interface{}) {
 func WriteJSONError(w http.ResponseWriter, status int, message string) {
 	WriteJSON(w, status, map[string]string{"error": message})
 }
+
+
+
+
+
+
 
 
 
@@ -659,6 +838,14 @@ func (s *Server) registerRoutes() {
 
 			// GET /api/v1/accounts/{accountID}/rules (NIEUW)
 			r.Get("/accounts/{accountID}/rules", s.handleGetAutomationRules())
+
+			// --- NIEUW (Feature 2) ---
+			// DELETE /api/v1/rules/{ruleID}
+			r.Delete("/rules/{ruleID}", s.handleDeleteAutomationRule())
+
+			// --- NIEUW (Feature 1) ---
+			// GET /api/v1/accounts/{accountID}/logs
+			r.Get("/accounts/{accountID}/logs", s.handleGetAutomationLogs())
 		})
 	})
 }
@@ -738,6 +925,11 @@ func (s *Server) jwtAuthMiddleware() func(http.Handler) http.Handler {
 
 
 
+
+
+
+
+
 ## internal/crypto/crypto.go
 package crypto
 
@@ -810,6 +1002,12 @@ func Decrypt(ciphertext []byte) ([]byte, error) {
 
 
 
+
+
+
+
+
+
 ## internal/database/database.go
 package database
 
@@ -843,6 +1041,11 @@ func ConnectDB() (*pgxpool.Pool, error) {
 	log.Println("Successfully connected to database.")
 	return pool, nil
 }
+
+
+
+
+
 
 
 
@@ -956,6 +1159,11 @@ type ActionLogDetails struct {
 
 
 
+
+
+
+
+
 ## internal/store/store.go
 package store
 
@@ -990,6 +1198,13 @@ type Storer interface {
 	GetRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.AutomationRule, error)
 	CreateAutomationLog(ctx context.Context, arg CreateLogParams) error
 	HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error)
+
+	// --- NIEUW (Feature 1) ---
+	GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error)
+
+	// --- NIEUW (Feature 2) ---
+	VerifyRuleOwnership(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error
+	DeleteRule(ctx context.Context, ruleID uuid.UUID) error
 }
 
 // DBStore implementeert de Storer interface.
@@ -1485,6 +1700,98 @@ func (s *DBStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, trigge
 	return true, nil // Gevonden
 }
 
+// --- NIEUWE FUNCTIE (Feature 1) ---
+// GetLogsForAccount haalt de meest recente logs op voor een account.
+func (s *DBStore) GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error) {
+	query := `
+	   SELECT id, connected_account_id, rule_id, timestamp, status,
+	          trigger_details, action_details, error_message
+	   FROM automation_logs
+	   WHERE connected_account_id = $1
+	   ORDER BY timestamp DESC
+	   LIMIT $2;
+	   `
+
+	rows, err := s.pool.Query(ctx, query, accountID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("db query error: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []domain.AutomationLog
+	for rows.Next() {
+		var log domain.AutomationLog
+		err := rows.Scan(
+			&log.ID,
+			&log.ConnectedAccountID,
+			&log.RuleID,
+			&log.Timestamp,
+			&log.Status,
+			&log.TriggerDetails,
+			&log.ActionDetails,
+			&log.ErrorMessage,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("db row scan error: %w", err)
+		}
+		logs = append(logs, log)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db rows error: %w", err)
+	}
+
+	return logs, nil
+}
+
+// --- NIEUWE FUNCTIE (Feature 2) ---
+// VerifyRuleOwnership controleert of een gebruiker de eigenaar is van de regel (via het account).
+func (s *DBStore) VerifyRuleOwnership(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error {
+	query := `
+	   SELECT 1
+	   FROM automation_rules r
+	   JOIN connected_accounts ca ON r.connected_account_id = ca.id
+	   WHERE r.id = $1 AND ca.user_id = $2
+	   LIMIT 1;
+	   `
+	var exists int
+	err := s.pool.QueryRow(ctx, query, ruleID, userID).Scan(&exists)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("forbidden: rule not found or does not belong to user")
+		}
+		return fmt.Errorf("db query error: %w", err)
+	}
+
+	return nil
+}
+
+// --- NIEUWE FUNCTIE (Feature 2) ---
+// DeleteRule verwijdert een specifieke regel uit de database.
+func (s *DBStore) DeleteRule(ctx context.Context, ruleID uuid.UUID) error {
+	query := `
+	   DELETE FROM automation_rules
+	   WHERE id = $1;
+	   `
+
+	cmdTag, err := s.pool.Exec(ctx, query, ruleID)
+	if err != nil {
+		return fmt.Errorf("db exec error: %w", err)
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return fmt.Errorf("no rule found with ID %s to delete", ruleID)
+	}
+
+	return nil
+}
+
+
+
+
+
+
 
 
 
@@ -1948,6 +2255,9 @@ func (w *Worker) processCalendarEvents(ctx context.Context, acc domain.Connected
 
 
 
+
+
+
 C:\Users\JJALa\Desktop\Github\Agenda tool Jeffrey\Jeffrey-s-Agenda-Tool\.env
 #---------------------------------------------------
 # 1. APPLICATIE CONFIGURATIE
@@ -1997,6 +2307,11 @@ ALLOWED_O_S=http://localhost:3000,https://prod.com
 JWT_SECRET_KEY="een-andere-zeer-sterke-geheime-sleutel"
 
 
+
+
+
+
+
 ## .env.example
 //---------------------------------------------------
 // 1. APPLICATIE CONFIGURATIE
@@ -2041,6 +2356,10 @@ ALLOWED_ORIGINS=http://localhost:3000,https://prod.com
 
 
 
+
+
+
+
 ## .gitignore
 # Environment variables
 .env
@@ -2081,6 +2400,10 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+
+
+
 
 
 
@@ -2140,6 +2463,46 @@ volumes:
 
 
 
+
+
+
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\Dockerfile
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source
+COPY . .
+
+# Build
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main cmd/server/main.go
+
+# Final stage
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+
+COPY --from=builder /app/main .
+
+EXPOSE 8080
+
+CMD ["./main"]
+
+
+
+
+
+
+
+
+
 ## go.mod
 module agenda-automator-api
 
@@ -2185,6 +2548,8 @@ require (
 	google.golang.org/grpc v1.76.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
+
+
 
 
 

@@ -54,7 +54,7 @@ type ConnectedAccount struct {
 	Status         AccountStatus `db:"status"`
 	CreatedAt      time.Time     `db:"created_at"`
 	UpdatedAt      time.Time     `db:"updated_at"`
-	LastChecked    time.Time     `db:"last_checked"` // NIEUW
+	LastChecked    *time.Time    `db:"last_checked"` // OPGELOST: Moet *time.Time zijn
 }
 
 type AutomationRule struct {

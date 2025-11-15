@@ -31,6 +31,13 @@ type Storer interface {
 	GetRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.AutomationRule, error)
 	CreateAutomationLog(ctx context.Context, arg CreateLogParams) error
 	HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error)
+
+	// --- NIEUW (Feature 1) ---
+	GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error)
+
+	// --- NIEUW (Feature 2) ---
+	VerifyRuleOwnership(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error
+	DeleteRule(ctx context.Context, ruleID uuid.UUID) error
 }
 
 // DBStore implementeert de Storer interface.
@@ -524,4 +531,91 @@ func (s *DBStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, trigge
 	}
 
 	return true, nil // Gevonden
+}
+
+// --- NIEUWE FUNCTIE (Feature 1) ---
+// GetLogsForAccount haalt de meest recente logs op voor een account.
+func (s *DBStore) GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error) {
+	query := `
+	   SELECT id, connected_account_id, rule_id, timestamp, status,
+	          trigger_details, action_details, error_message
+	   FROM automation_logs
+	   WHERE connected_account_id = $1
+	   ORDER BY timestamp DESC
+	   LIMIT $2;
+	   `
+
+	rows, err := s.pool.Query(ctx, query, accountID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("db query error: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []domain.AutomationLog
+	for rows.Next() {
+		var log domain.AutomationLog
+		err := rows.Scan(
+			&log.ID,
+			&log.ConnectedAccountID,
+			&log.RuleID,
+			&log.Timestamp,
+			&log.Status,
+			&log.TriggerDetails,
+			&log.ActionDetails,
+			&log.ErrorMessage,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("db row scan error: %w", err)
+		}
+		logs = append(logs, log)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db rows error: %w", err)
+	}
+
+	return logs, nil
+}
+
+// --- NIEUWE FUNCTIE (Feature 2) ---
+// VerifyRuleOwnership controleert of een gebruiker de eigenaar is van de regel (via het account).
+func (s *DBStore) VerifyRuleOwnership(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error {
+	query := `
+	   SELECT 1
+	   FROM automation_rules r
+	   JOIN connected_accounts ca ON r.connected_account_id = ca.id
+	   WHERE r.id = $1 AND ca.user_id = $2
+	   LIMIT 1;
+	   `
+	var exists int
+	err := s.pool.QueryRow(ctx, query, ruleID, userID).Scan(&exists)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("forbidden: rule not found or does not belong to user")
+		}
+		return fmt.Errorf("db query error: %w", err)
+	}
+
+	return nil
+}
+
+// --- NIEUWE FUNCTIE (Feature 2) ---
+// DeleteRule verwijdert een specifieke regel uit de database.
+func (s *DBStore) DeleteRule(ctx context.Context, ruleID uuid.UUID) error {
+	query := `
+	   DELETE FROM automation_rules
+	   WHERE id = $1;
+	   `
+
+	cmdTag, err := s.pool.Exec(ctx, query, ruleID)
+	if err != nil {
+		return fmt.Errorf("db exec error: %w", err)
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return fmt.Errorf("no rule found with ID %s to delete", ruleID)
+	}
+
+	return nil
 }

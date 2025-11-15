@@ -326,3 +326,101 @@ func (s *Server) handleGetAutomationRules() http.HandlerFunc {
 		WriteJSON(w, http.StatusOK, rules)
 	}
 }
+
+// --- NIEUWE HANDLER (Feature 1) ---
+
+// PublicAutomationLog is een struct die we veilig kunnen teruggeven aan de client.
+type PublicAutomationLog struct {
+	ID             int64                      `json:"id"`
+	Timestamp      time.Time                  `json:"timestamp"`
+	Status         domain.AutomationLogStatus `json:"status"`
+	TriggerDetails json.RawMessage            `json:"trigger_details"`
+	ActionDetails  json.RawMessage            `json:"action_details"`
+	ErrorMessage   string                     `json:"error_message"`
+}
+
+// handleGetAutomationLogs haalt de recente logs op voor een account.
+func (s *Server) handleGetAutomationLogs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			return
+		}
+
+		// 2. Haal de 'accountID' op uit de URL path
+		accountIDStr := chi.URLParam(r, "accountID")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID formaat")
+			return
+		}
+
+		// 3. (KRITIEK) Controleer eigendom
+		if err := s.store.VerifyAccountOwnership(r.Context(), accountID, userID); err != nil {
+			log.Printf("Forbidden access attempt: User %s tried to access logs for account %s", userID, accountID)
+			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot dit account")
+			return
+		}
+
+		// 4. Haal de logs op (met een limiet)
+		logs, err := s.store.GetLogsForAccount(r.Context(), accountID, 20) // Limiet op 20
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon logs niet ophalen")
+			return
+		}
+
+		// 5. Converteer naar publieke struct (verbergt interne DB details)
+		publicLogs := make([]PublicAutomationLog, len(logs))
+		for i, log := range logs {
+			publicLogs[i] = PublicAutomationLog{
+				ID:             log.ID,
+				Timestamp:      log.Timestamp,
+				Status:         log.Status,
+				TriggerDetails: log.TriggerDetails, // Is al []byte/json.RawMessage
+				ActionDetails:  log.ActionDetails,
+				ErrorMessage:   log.ErrorMessage,
+			}
+		}
+
+		WriteJSON(w, http.StatusOK, publicLogs)
+	}
+}
+
+// --- NIEUWE HANDLER (Feature 2) ---
+
+// handleDeleteAutomationRule verwijdert een regel.
+func (s *Server) handleDeleteAutomationRule() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			return
+		}
+
+		// 2. Haal de 'ruleID' op uit de URL path
+		ruleIDStr := chi.URLParam(r, "ruleID")
+		ruleID, err := uuid.Parse(ruleIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig regel ID formaat")
+			return
+		}
+
+		// 3. (KRITIEK) Controleer eigendom
+		if err := s.store.VerifyRuleOwnership(r.Context(), ruleID, userID); err != nil {
+			log.Printf("Forbidden access attempt: User %s tried to delete rule %s", userID, ruleID)
+			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot deze regel")
+			return
+		}
+
+		// 4. Verwijder de regel
+		if err := s.store.DeleteRule(r.Context(), ruleID); err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon regel niet verwijderen")
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent) // Stuur 204 No Content terug
+	}
+}

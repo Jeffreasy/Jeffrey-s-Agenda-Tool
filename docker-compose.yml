@@ -47,6 +47,8 @@ services:
       - RUN_MIGRATIONS=true
       - LOG_MAX_SIZE=10MB
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+      # HIER IS DE TOEVOEGING:
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
 
 volumes:
   pgdata:

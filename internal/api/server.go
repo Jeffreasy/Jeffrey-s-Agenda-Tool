@@ -90,6 +90,14 @@ func (s *Server) registerRoutes() {
 
 			// GET /api/v1/accounts/{accountID}/rules (NIEUW)
 			r.Get("/accounts/{accountID}/rules", s.handleGetAutomationRules())
+
+			// --- NIEUW (Feature 2) ---
+			// DELETE /api/v1/rules/{ruleID}
+			r.Delete("/rules/{ruleID}", s.handleDeleteAutomationRule())
+
+			// --- NIEUW (Feature 1) ---
+			// GET /api/v1/accounts/{accountID}/logs
+			r.Get("/accounts/{accountID}/logs", s.handleGetAutomationLogs())
 		})
 	})
 }
