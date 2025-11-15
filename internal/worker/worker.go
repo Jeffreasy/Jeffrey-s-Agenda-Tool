@@ -1,16 +1,16 @@
 package worker
 
 import (
-	"agenda-automator-api/internal/crypto"
+	// "agenda-automator-api/internal/crypto" // <-- VERWIJDERD
 	"agenda-automator-api/internal/domain"
 	"agenda-automator-api/internal/store"
 	"context"
 	"encoding/json"
-	"errors" // NIEUW
+	"errors"
 	"fmt"
 	"log"
 	"strings"
-	"sync" // NIEUW voor parallel
+	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -18,24 +18,19 @@ import (
 	"google.golang.org/api/option"
 )
 
-// NIEUW: (Optimalisatie 2) Specifieke error voor revoked tokens
-var ErrTokenRevoked = fmt.Errorf("token access has been revoked by user")
+// VERWIJDERD:
+// var ErrTokenRevoked = fmt.Errorf("token access has been revoked by user")
 
 // Worker is de struct voor onze achtergrond-processor
 type Worker struct {
-	store             store.Storer
-	googleOAuthConfig *oauth2.Config
+	store store.Storer
+	// googleOAuthConfig *oauth2.Config // <-- VERWIJDERD (zit nu in store)
 }
 
-// NewWorker ...
-func NewWorker(s store.Storer, oauthCfg *oauth2.Config) (*Worker, error) {
-	if oauthCfg == nil {
-		return nil, fmt.Errorf("oauth config mag niet nil zijn")
-	}
-
+// NewWorker (AANGEPAST)
+func NewWorker(s store.Storer) (*Worker, error) {
 	return &Worker{
-		store:             s,
-		googleOAuthConfig: oauthCfg,
+		store: s,
 	}, nil
 }
 
@@ -96,109 +91,38 @@ func (w *Worker) checkAccounts(ctx context.Context) error {
 	return nil
 }
 
-// processAccount (AANGEPAST met Optimalisatie 2)
+// processAccount (ZWAAR VEREENVOUDIGD)
 func (w *Worker) processAccount(ctx context.Context, acc domain.ConnectedAccount) {
-	// Maak een 'token' object van de data in de DB
-	token, err := w.getTokenForAccount(acc)
+	// 1. Haal een gegarandeerd geldig token op.
+	// De store regelt de decryptie, check, refresh, en update.
+	token, err := w.store.GetValidTokenForAccount(ctx, acc.ID)
 	if err != nil {
-		log.Printf("[Worker] ERROR: Kon token niet voorbereiden voor account %s: %v", acc.ID, err)
-		return
+		// De store heeft de 'revoked' status al ingesteld,
+		// we hoeven hier alleen nog maar te loggen en stoppen.
+		if errors.Is(err, store.ErrTokenRevoked) {
+			log.Printf("[Worker] Account %s is revoked. Stopping processing.", acc.ID)
+		} else {
+			log.Printf("[Worker] ERROR: Kon geen geldig token krijgen voor account %s: %v", acc.ID, err)
+		}
+		return // Stop verwerking voor dit account
 	}
 
-	// Controleer of het token (bijna) verlopen is
-	if !token.Valid() {
-		log.Printf("[Worker] Token for account %s (User %s) is expired. Refreshing...", acc.ID, acc.UserID)
-
-		newToken, err := w.refreshAccountToken(ctx, token)
-		if err != nil {
-			// --- OPTIMALISATIE 2: ERROR HANDLING ---
-			if errors.Is(err, ErrTokenRevoked) {
-				log.Printf("[Worker] FATAL: Access for account %s has been revoked. Setting status to 'revoked'.", acc.ID)
-				// Zet account op 'revoked' in DB zodat we het niet opnieuw proberen
-				if err := w.store.UpdateAccountStatus(ctx, acc.ID, domain.StatusRevoked); err != nil {
-					log.Printf("[Worker] ERROR: Failed to update status for revoked account %s: %v", acc.ID, err)
-				}
-			} else {
-				// Andere, tijdelijke refresh error
-				log.Printf("[Worker] ERROR refreshing account %s: %v", acc.ID, err)
-			}
-			return // Stop verwerking voor dit account
-			// --- EINDE OPTIMALISATIE 2 ---
-		}
-
-		err = w.store.UpdateAccountTokens(ctx, store.UpdateAccountTokensParams{
-			AccountID:       acc.ID,
-			NewAccessToken:  newToken.AccessToken,
-			NewRefreshToken: newToken.RefreshToken, // Zorg dat we de nieuwe refresh token opslaan
-			NewTokenExpiry:  newToken.Expiry,
-		})
-		if err != nil {
-			log.Printf("[Worker] ERROR updating refreshed token for account %s: %v", acc.ID, err)
-			return
-		}
-
-		token = newToken
-	}
-
-	// Process calendar
+	// 2. Process calendar
 	log.Printf("[Worker] Token for account %s is valid. Processing calendar...", acc.ID)
 	if err := w.processCalendarEvents(ctx, acc, token); err != nil {
 		log.Printf("[Worker] ERROR processing calendar for account %s: %v", acc.ID, err)
 	}
 
-	// Update last_checked
+	// 3. Update last_checked
 	if err := w.store.UpdateAccountLastChecked(ctx, acc.ID); err != nil {
 		log.Printf("[Worker] ERROR updating last_checked for account %s: %v", acc.ID, err)
 	}
 }
 
-// getTokenForAccount haalt de versleutelde tokens op en maakt een *oauth2.Token (decrypt both)
-func (w *Worker) getTokenForAccount(acc domain.ConnectedAccount) (*oauth2.Token, error) {
-	plaintextAccessToken, err := crypto.Decrypt(acc.AccessToken)
-	if err != nil {
-		return nil, fmt.Errorf("could not decrypt access token: %w", err)
-	}
+// VERWIJDERD: getTokenForAccount
+// VERWIJDERD: refreshAccountToken
 
-	var plaintextRefreshToken []byte
-	if len(acc.RefreshToken) > 0 {
-		plaintextRefreshToken, err = crypto.Decrypt(acc.RefreshToken)
-		if err != nil {
-			return nil, fmt.Errorf("could not decrypt refresh token: %w", err)
-		}
-	}
-
-	return &oauth2.Token{
-		AccessToken:  string(plaintextAccessToken),
-		RefreshToken: string(plaintextRefreshToken),
-		Expiry:       acc.TokenExpiry,
-		TokenType:    "Bearer",
-	}, nil
-}
-
-// refreshAccountToken (AANGEPAST met Optimalisatie 2)
-func (w *Worker) refreshAccountToken(ctx context.Context, expiredToken *oauth2.Token) (*oauth2.Token, error) {
-	ts := w.googleOAuthConfig.TokenSource(ctx, expiredToken)
-
-	newToken, err := ts.Token()
-	if err != nil {
-		// --- OPTIMALISATIE 2: Vang 'invalid_grant' ---
-		// Dit gebeurt als de gebruiker de toegang intrekt
-		if strings.Contains(err.Error(), "invalid_grant") {
-			return nil, ErrTokenRevoked
-		}
-		// --- EINDE OPTIMALISATIE 2 ---
-		return nil, fmt.Errorf("could not refresh token: %w", err)
-	}
-
-	// Als we GEEN nieuwe refresh token krijgen, hergebruik dan de oude
-	if newToken.RefreshToken == "" {
-		newToken.RefreshToken = expiredToken.RefreshToken
-	}
-
-	return newToken, nil
-}
-
-// eventExists controleert of een event met dezelfde titel al bestaat in de tijdsslot
+// eventExists (Bestaande code)
 func eventExists(srv *calendar.Service, start, end time.Time, title string) bool {
 	// Zoek in een iets ruimer venster om afrondingsfouten te vangen
 	timeMin := start.Add(-1 * time.Minute).Format(time.RFC3339)
@@ -226,27 +150,31 @@ func eventExists(srv *calendar.Service, start, end time.Time, title string) bool
 	return false
 }
 
-// processCalendarEvents (AANGEPAST met Optimalisatie 1: Logging)
+// processCalendarEvents (Bestaande code)
 func (w *Worker) processCalendarEvents(ctx context.Context, acc domain.ConnectedAccount, token *oauth2.Token) error {
 
-	client := w.googleOAuthConfig.Client(ctx, token)
+	// De OAuth client is nu niet meer nodig in de worker,
+	// maar wel om de calendar service te maken.
+	// We halen hem op uit de store config.
+	client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
 
 	srv, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		return fmt.Errorf("could not create calendar service: %w", err)
 	}
 
-	// Aangepast: Check 3 maanden vooruit.
-	tMin := time.Now().Format(time.RFC3339)
-	tMax := time.Now().AddDate(0, 3, 0).Format(time.RFC3339) // 3 maanden vooruit
+	// Ongelimiteerd: Haal alle events op
+	tMin := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339)
+	tMax := time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339)
 
-	log.Printf("[Worker] Fetching calendar events for %s between %s and %s", acc.Email, tMin, tMax)
+	log.Printf("[Worker] Fetching all calendar events for %s (unlimited)", acc.Email)
 
 	events, err := srv.Events.List("primary").
 		TimeMin(tMin).
 		TimeMax(tMax).
 		SingleEvents(true).
 		OrderBy("startTime").
+		MaxResults(2500).
 		Do()
 	if err != nil {
 		return fmt.Errorf("could not fetch calendar events: %w", err)
@@ -271,7 +199,13 @@ func (w *Worker) processCalendarEvents(ctx context.Context, acc domain.Connected
 			continue
 		}
 
+		// (Aangepast: filter op actieve regels gebeurt nu in de DB query)
 		for _, rule := range rules {
+			// (Nieuwe check: de query haalt nu *alle* regels op, we moeten inactieve skippen)
+			if !rule.IsActive {
+				continue
+			}
+
 			var trigger domain.TriggerConditions
 			if err := json.Unmarshal(rule.TriggerConditions, &trigger); err != nil {
 				log.Printf("[Worker] ERROR unmarshaling trigger for rule %s: %v", rule.ID, err)
@@ -312,16 +246,12 @@ func (w *Worker) processCalendarEvents(ctx context.Context, acc domain.Connected
 			}
 
 			// --- 1.5. CHECK LOGS (OPTIMALISATIE 1) ---
-			// Sla de rest over als we deze trigger event al succesvol hebben verwerkt.
-			// Dit voorkomt dubbel werk en onnodige eventExists API calls.
 			hasLogged, err := w.store.HasLogForTrigger(ctx, rule.ID, event.Id)
 			if err != nil {
 				log.Printf("[Worker] ERROR checking logs for event %s / rule %s: %v", event.Id, rule.ID, err)
-				// Ga door (veilige aanname), de eventExists check vangt het wel
 			}
 			if hasLogged {
-				// log.Printf("[Worker] SKIP: Trigger event %s already processed by rule %s.", event.Id, rule.ID)
-				continue // Ga naar de volgende regel
+				continue
 			}
 			// --- EINDE OPTIMALISATIE 1.5 ---
 
@@ -364,8 +294,6 @@ func (w *Worker) processCalendarEvents(ctx context.Context, acc domain.Connected
 				log.Printf("[Worker] SKIP: Reminder event '%s' at %s already exists.", title, reminderTime)
 
 				// --- 3.1. LOG DIT VOOR DE VOLGENDE KEER (OPTIMALISATIE 1) ---
-				// We vonden geen log (stap 1.5), maar het event bestaat wel (stap 3).
-				// We loggen het nu alsnog om toekomstige API-checks te voorkomen.
 				triggerDetailsJSON, _ := json.Marshal(domain.TriggerLogDetails{
 					GoogleEventID:  event.Id,
 					TriggerSummary: event.Summary,
@@ -379,7 +307,7 @@ func (w *Worker) processCalendarEvents(ctx context.Context, acc domain.Connected
 				logParams := store.CreateLogParams{
 					ConnectedAccountID: acc.ID,
 					RuleID:             rule.ID,
-					Status:             domain.LogSkipped, // We skippen, want het bestond al
+					Status:             domain.LogSkipped,
 					TriggerDetails:     triggerDetailsJSON,
 					ActionDetails:      actionDetailsJSON,
 				}

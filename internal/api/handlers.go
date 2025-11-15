@@ -13,19 +13,20 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-chi/chi/v5" // NIEUWE IMPORT
+	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
+	"google.golang.org/api/calendar/v3"
 	oauth2v2 "google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
 )
 
-// --- AUTH HANDLERS ---
+// --- AUTH HANDLERS (Bestaande code) ---
 
 const oauthStateCookieName = "oauthstate"
 
-// NIEUWE HELPER: Haalt de user ID op die door de middleware in de context is gezet
+// HELPER: Haalt de user ID op die door de middleware in de context is gezet
 func getUserIDFromContext(ctx context.Context) (uuid.UUID, error) {
 	userID, ok := ctx.Value(userContextKey).(uuid.UUID)
 	if !ok {
@@ -162,71 +163,112 @@ func getUserInfo(ctx context.Context, token *oauth2.Token) (*oauth2v2.Userinfo, 
 	return userInfo, nil
 }
 
-// --- CreateUser (Bestaande code) ---
+// --- USER HANDLERS ---
 
-type CreateUserRequest struct {
-	Email string `json:"email"`
-	Name  string `json:"name"`
-}
-
-func (s *Server) handleCreateUser() http.HandlerFunc {
+// handleGetMe haalt de gegevens op van de ingelogde gebruiker.
+func (s *Server) handleGetMe() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req CreateUserRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			WriteJSONError(w, http.StatusBadRequest, "Invalid request body")
-			return
-		}
-
-		if req.Email == "" {
-			WriteJSONError(w, http.StatusBadRequest, "Email is required")
-			return
-		}
-
-		user, err := s.store.CreateUser(r.Context(), req.Email, req.Name)
+		userID, err := getUserIDFromContext(r.Context())
 		if err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, "Could not create user")
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		WriteJSON(w, http.StatusCreated, user)
+		user, err := s.store.GetUserByID(r.Context(), userID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon gebruiker niet ophalen")
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, user)
 	}
 }
 
-// --- handleCreateAutomationRule (Bestaande code) ---
+// --- ACCOUNT HANDLERS ---
 
-type CreateAutomationRuleRequest struct {
-	ConnectedAccountID uuid.UUID       `json:"connected_account_id"`
-	Name               string          `json:"name"`
-	TriggerConditions  json.RawMessage `json:"trigger_conditions"`
-	ActionParams       json.RawMessage `json:"action_params"`
-}
-
-func (s *Server) handleCreateAutomationRule() http.HandlerFunc {
+// handleGetConnectedAccounts haalt alle gekoppelde accounts op voor de gebruiker.
+func (s *Server) handleGetConnectedAccounts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker (uit de context)
 		userID, err := getUserIDFromContext(r.Context())
 		if err != nil {
-			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		// 2. Decodeer de request body
-		var req CreateAutomationRuleRequest
+		accounts, err := s.store.GetAccountsForUser(r.Context(), userID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon accounts niet ophalen")
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, accounts)
+	}
+}
+
+// handleDeleteConnectedAccount verwijdert een gekoppeld account.
+func (s *Server) handleDeleteConnectedAccount() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		account, err := s.store.GetConnectedAccountByID(r.Context(), accountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		err = s.store.DeleteConnectedAccount(r.Context(), accountID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon account niet verwijderen")
+			return
+		}
+
+		WriteJSON(w, http.StatusNoContent, nil)
+	}
+}
+
+// --- RULE HANDLERS ---
+
+// handleCreateRule creëert een nieuwe automation rule.
+func (s *Server) handleCreateRule() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		account, err := s.store.GetConnectedAccountByID(r.Context(), accountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		var req domain.AutomationRule
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			WriteJSONError(w, http.StatusBadRequest, "Invalid request body")
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body")
 			return
 		}
 
-		// 3. (KRITIEK) Controleer of deze gebruiker wel de eigenaar is van het account
-		if err := s.store.VerifyAccountOwnership(r.Context(), req.ConnectedAccountID, userID); err != nil {
-			log.Printf("Forbidden access attempt: User %s tried to access account %s", userID, req.ConnectedAccountID)
-			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot dit account")
-			return
-		}
-
-		// 4. Ga door met het aanmaken van de regel (nu veilig)
 		params := store.CreateAutomationRuleParams{
-			ConnectedAccountID: req.ConnectedAccountID, // We weten nu dat dit ID veilig is
+			ConnectedAccountID: accountID,
 			Name:               req.Name,
 			TriggerConditions:  req.TriggerConditions,
 			ActionParams:       req.ActionParams,
@@ -234,7 +276,7 @@ func (s *Server) handleCreateAutomationRule() http.HandlerFunc {
 
 		rule, err := s.store.CreateAutomationRule(r.Context(), params)
 		if err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, "Kon regel niet aanmaken")
+			WriteJSONError(w, http.StatusInternalServerError, "Kon rule niet creëren")
 			return
 		}
 
@@ -242,185 +284,490 @@ func (s *Server) handleCreateAutomationRule() http.HandlerFunc {
 	}
 }
 
-// --- NIEUWE READ HANDLERS ---
-
-// handleGetConnectedAccounts haalt alle accounts op voor de ingelogde gebruiker
-func (s *Server) handleGetConnectedAccounts() http.HandlerFunc {
+// handleGetRules haalt alle rules op voor een account.
+func (s *Server) handleGetRules() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
-		userID, err := getUserIDFromContext(r.Context())
-		if err != nil {
-			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
-			return
-		}
-
-		// 2. Haal de accounts op uit de store
-		accounts, err := s.store.GetAccountsForUser(r.Context(), userID)
-		if err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, "Kon accounts niet ophalen")
-			return
-		}
-
-		// 3. (BELANGRIJK) Verberg de versleutelde tokens voordat we ze terugsturen.
-		// We willen nooit access/refresh tokens (zelfs versleuteld) naar de client sturen.
-		type PublicAccount struct {
-			ID             uuid.UUID            `json:"id"`
-			UserID         uuid.UUID            `json:"user_id"`
-			Provider       domain.ProviderType  `json:"provider"`
-			Email          string               `json:"email"`
-			Status         domain.AccountStatus `json:"status"`
-			ProviderUserID string               `json:"provider_user_id"`
-			CreatedAt      time.Time            `json:"created_at"`
-		}
-
-		publicAccounts := make([]PublicAccount, len(accounts))
-		for i, acc := range accounts {
-			publicAccounts[i] = PublicAccount{
-				ID:             acc.ID,
-				UserID:         acc.UserID,
-				Provider:       acc.Provider,
-				Email:          acc.Email,
-				Status:         acc.Status,
-				ProviderUserID: acc.ProviderUserID,
-				CreatedAt:      acc.CreatedAt,
-			}
-		}
-
-		WriteJSON(w, http.StatusOK, publicAccounts)
-	}
-}
-
-// handleGetAutomationRules haalt alle regels op voor een specifiek, eigendom
-func (s *Server) handleGetAutomationRules() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
-		userID, err := getUserIDFromContext(r.Context())
-		if err != nil {
-			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
-			return
-		}
-
-		// 2. Haal de 'accountID' op uit de URL path (e.g. /accounts/uuid-hier/rules)
-		accountIDStr := chi.URLParam(r, "accountID")
+		accountIDStr := chi.URLParam(r, "accountId")
 		accountID, err := uuid.Parse(accountIDStr)
 		if err != nil {
-			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID formaat")
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
 			return
 		}
 
-		// 3. (KRITIEK) Controleer eigendom
-		if err := s.store.VerifyAccountOwnership(r.Context(), accountID, userID); err != nil {
-			log.Printf("Forbidden access attempt: User %s tried to access rules for account %s", userID, accountID)
-			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot dit account")
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		// 4. Haal de regels op (nu veilig)
+		account, err := s.store.GetConnectedAccountByID(r.Context(), accountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
 		rules, err := s.store.GetRulesForAccount(r.Context(), accountID)
 		if err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, "Kon regels niet ophalen")
+			WriteJSONError(w, http.StatusInternalServerError, "Kon rules niet ophalen")
 			return
 		}
 
-		// De 'rules' struct bevat geen geheimen, dus we kunnen het direct teruggeven.
 		WriteJSON(w, http.StatusOK, rules)
 	}
 }
 
-// --- NIEUWE HANDLER (Feature 1) ---
-
-// PublicAutomationLog is een struct die we veilig kunnen teruggeven aan de client.
-type PublicAutomationLog struct {
-	ID             int64                      `json:"id"`
-	Timestamp      time.Time                  `json:"timestamp"`
-	Status         domain.AutomationLogStatus `json:"status"`
-	TriggerDetails json.RawMessage            `json:"trigger_details"`
-	ActionDetails  json.RawMessage            `json:"action_details"`
-	ErrorMessage   string                     `json:"error_message"`
-}
-
-// handleGetAutomationLogs haalt de recente logs op voor een account.
-func (s *Server) handleGetAutomationLogs() http.HandlerFunc {
+// handleUpdateRule update een bestaande rule.
+func (s *Server) handleUpdateRule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
+		ruleIDStr := chi.URLParam(r, "ruleId")
+		ruleID, err := uuid.Parse(ruleIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig rule ID")
+			return
+		}
+
 		userID, err := getUserIDFromContext(r.Context())
 		if err != nil {
-			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		// 2. Haal de 'accountID' op uit de URL path
-		accountIDStr := chi.URLParam(r, "accountID")
+		rule, err := s.store.GetRuleByID(r.Context(), ruleID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Rule niet gevonden")
+			return
+		}
+
+		account, err := s.store.GetConnectedAccountByID(r.Context(), rule.ConnectedAccountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusForbidden, "Geen toegang tot deze rule")
+			return
+		}
+
+		var req domain.AutomationRule
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body")
+			return
+		}
+
+		params := store.UpdateRuleParams{
+			RuleID:            ruleID,
+			Name:              req.Name,
+			TriggerConditions: req.TriggerConditions,
+			ActionParams:      req.ActionParams,
+		}
+
+		updatedRule, err := s.store.UpdateRule(r.Context(), params)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon rule niet updaten")
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, updatedRule)
+	}
+}
+
+// handleDeleteRule verwijdert een rule.
+func (s *Server) handleDeleteRule() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ruleIDStr := chi.URLParam(r, "ruleId")
+		ruleID, err := uuid.Parse(ruleIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig rule ID")
+			return
+		}
+
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		rule, err := s.store.GetRuleByID(r.Context(), ruleID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Rule niet gevonden")
+			return
+		}
+
+		account, err := s.store.GetConnectedAccountByID(r.Context(), rule.ConnectedAccountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusForbidden, "Geen toegang tot deze rule")
+			return
+		}
+
+		err = s.store.DeleteRule(r.Context(), ruleID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon rule niet verwijderen")
+			return
+		}
+
+		WriteJSON(w, http.StatusNoContent, nil)
+	}
+}
+
+// handleToggleRule togglet de active status van een rule.
+func (s *Server) handleToggleRule() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ruleIDStr := chi.URLParam(r, "ruleId")
+		ruleID, err := uuid.Parse(ruleIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig rule ID")
+			return
+		}
+
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		rule, err := s.store.GetRuleByID(r.Context(), ruleID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Rule niet gevonden")
+			return
+		}
+
+		account, err := s.store.GetConnectedAccountByID(r.Context(), rule.ConnectedAccountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusForbidden, "Geen toegang tot deze rule")
+			return
+		}
+
+		updatedRule, err := s.store.ToggleRuleStatus(r.Context(), ruleID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon rule status niet togglen")
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, updatedRule)
+	}
+}
+
+// --- LOG HANDLERS ---
+
+// handleGetAutomationLogs haalt logs op voor een account.
+func (s *Server) handleGetAutomationLogs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
 		accountID, err := uuid.Parse(accountIDStr)
 		if err != nil {
-			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID formaat")
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
 			return
 		}
 
-		// 3. (KRITIEK) Controleer eigendom
-		if err := s.store.VerifyAccountOwnership(r.Context(), accountID, userID); err != nil {
-			log.Printf("Forbidden access attempt: User %s tried to access logs for account %s", userID, accountID)
-			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot dit account")
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		// 4. Haal de logs op (met een limiet)
-		logs, err := s.store.GetLogsForAccount(r.Context(), accountID, 20) // Limiet op 20
+		account, err := s.store.GetConnectedAccountByID(r.Context(), accountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		limit := 50 // Default limit
+		logs, err := s.store.GetLogsForAccount(r.Context(), accountID, limit)
 		if err != nil {
 			WriteJSONError(w, http.StatusInternalServerError, "Kon logs niet ophalen")
 			return
 		}
 
-		// 5. Converteer naar publieke struct (verbergt interne DB details)
-		publicLogs := make([]PublicAutomationLog, len(logs))
-		for i, log := range logs {
-			publicLogs[i] = PublicAutomationLog{
-				ID:             log.ID,
-				Timestamp:      log.Timestamp,
-				Status:         log.Status,
-				TriggerDetails: log.TriggerDetails, // Is al []byte/json.RawMessage
-				ActionDetails:  log.ActionDetails,
-				ErrorMessage:   log.ErrorMessage,
-			}
-		}
-
-		WriteJSON(w, http.StatusOK, publicLogs)
+		WriteJSON(w, http.StatusOK, logs)
 	}
 }
 
-// --- NIEUWE HANDLER (Feature 2) ---
+// --- NIEUWE HANDLERS VOOR EVENT CRUD ---
 
-// handleDeleteAutomationRule verwijdert een regel.
-func (s *Server) handleDeleteAutomationRule() http.HandlerFunc {
+// handleCreateEvent creëert een nieuw event in Google Calendar
+func (s *Server) handleCreateEvent() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
+		accountIDStr := chi.URLParam(r, "accountId")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		calendarID := r.URL.Query().Get("calendarId") // Ondersteun secundaire calendars
+		if calendarID == "" {
+			calendarID = "primary"
+		}
+
+		var req calendar.Event
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body")
+			return
+		}
+
+		ctx := r.Context()
+		account, err := s.store.GetConnectedAccountByID(ctx, accountID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		client, err := s.getCalendarClient(ctx, account)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren")
+			return
+		}
+
+		createdEvent, err := client.Events.Insert(calendarID, &req).Do()
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon event niet creëren: %v", err))
+			return
+		}
+
+		WriteJSON(w, http.StatusCreated, createdEvent)
+	}
+}
+
+// handleUpdateEvent update een bestaand event
+func (s *Server) handleUpdateEvent() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
+		eventID := chi.URLParam(r, "eventId")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		calendarID := r.URL.Query().Get("calendarId") // Ondersteun secundaire calendars
+		if calendarID == "" {
+			calendarID = "primary"
+		}
+
+		var req calendar.Event
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body")
+			return
+		}
+
+		ctx := r.Context()
+		account, err := s.store.GetConnectedAccountByID(ctx, accountID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		client, err := s.getCalendarClient(ctx, account)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren")
+			return
+		}
+
+		updatedEvent, err := client.Events.Update(calendarID, eventID, &req).Do()
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon event niet updaten: %v", err))
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, updatedEvent)
+	}
+}
+
+// handleDeleteEvent verwijdert een event
+func (s *Server) handleDeleteEvent() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
+		eventID := chi.URLParam(r, "eventId")
+		calendarID := r.URL.Query().Get("calendarId") // Optioneel param voor secundaire calendar
+		if calendarID == "" {
+			calendarID = "primary"
+		}
+
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		ctx := r.Context()
+		account, err := s.store.GetConnectedAccountByID(ctx, accountID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		client, err := s.getCalendarClient(ctx, account)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren")
+			return
+		}
+
+		err = client.Events.Delete(calendarID, eventID).Do()
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon event niet verwijderen: %v", err))
+			return
+		}
+
+		WriteJSON(w, http.StatusNoContent, nil)
+	}
+}
+
+// --- BIJGEWERKTE HANDLER VOOR EVENT FETCH (MET MULTI-CALENDAR SUPPORT) ---
+
+// handleGetCalendarEvents haalt events op (nu met optionele calendarId param)
+func (s *Server) handleGetCalendarEvents() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		calendarID := r.URL.Query().Get("calendarId") // Nieuw: Ondersteun secundaire calendars
+		if calendarID == "" {
+			calendarID = "primary"
+		}
+
+		// -----------------------------------------------------------------
+		// HIER IS DE CORRECTIE (VERVANG JE OUDE timeMin/timeMax)
+		// -----------------------------------------------------------------
+		timeMinStr := r.URL.Query().Get("timeMin")
+		if timeMinStr == "" {
+			// Default op 'nu' als de frontend niets meegeeft
+			timeMinStr = time.Now().Format(time.RFC3339)
+		}
+
+		timeMaxStr := r.URL.Query().Get("timeMax")
+		if timeMaxStr == "" {
+			// Default op 3 maanden vooruit als de frontend niets meegeeft
+			timeMaxStr = time.Now().AddDate(0, 3, 0).Format(time.RFC3339)
+		}
+		// -----------------------------------------------------------------
+
+		ctx := r.Context()
+		account, err := s.store.GetConnectedAccountByID(ctx, accountID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		client, err := s.getCalendarClient(ctx, account)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren")
+			return
+		}
+
+		events, err := client.Events.List(calendarID).
+			TimeMin(timeMinStr). // <-- Gebruik de variabele
+			TimeMax(timeMaxStr). // <-- Gebruik de variabele
+			SingleEvents(true).
+			OrderBy("startTime").
+			MaxResults(250). // <-- VOEG DIT LIMIET TOE
+			Do()
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon events niet ophalen: %v", err))
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, events.Items)
+	}
+}
+
+// --- NIEUWE HANDLER VOOR AGGREGATED EVENTS ---
+
+// handleGetAggregatedEvents haalt events op van meerdere accounts/calendars
+func (s *Server) handleGetAggregatedEvents() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		userID, err := getUserIDFromContext(r.Context())
 		if err != nil {
-			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		// 2. Haal de 'ruleID' op uit de URL path
-		ruleIDStr := chi.URLParam(r, "ruleID")
-		ruleID, err := uuid.Parse(ruleIDStr)
-		if err != nil {
-			WriteJSONError(w, http.StatusBadRequest, "Ongeldig regel ID formaat")
+		// Parse request body: lijst van {accountId, calendarId} pairs
+		type AggRequest struct {
+			Accounts []struct {
+				AccountID  string `json:"accountId"`
+				CalendarID string `json:"calendarId"`
+			} `json:"accounts"`
+		}
+		var req AggRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body")
 			return
 		}
 
-		// 3. (KRITIEK) Controleer eigendom
-		if err := s.store.VerifyRuleOwnership(r.Context(), ruleID, userID); err != nil {
-			log.Printf("Forbidden access attempt: User %s tried to delete rule %s", userID, ruleID)
-			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot deze regel")
-			return
+		timeMin := time.Now()
+		timeMax := timeMin.AddDate(0, 3, 0)
+
+		var allEvents []*calendar.Event
+		ctx := r.Context()
+
+		for _, acc := range req.Accounts {
+			accountID, err := uuid.Parse(acc.AccountID)
+			if err != nil {
+				continue // Skip invalid
+			}
+
+			account, err := s.store.GetConnectedAccountByID(ctx, accountID)
+			if err != nil || account.UserID != userID {
+				continue // Skip not found or not owned
+			}
+
+			client, err := s.getCalendarClient(ctx, account)
+			if err != nil {
+				continue
+			}
+
+			calID := acc.CalendarID
+			if calID == "" {
+				calID = "primary"
+			}
+
+			events, err := client.Events.List(calID).
+				TimeMin(timeMin.Format(time.RFC3339)).
+				TimeMax(timeMax.Format(time.RFC3339)).
+				SingleEvents(true).
+				OrderBy("startTime").
+				Do()
+			if err != nil {
+				continue
+			}
+
+			allEvents = append(allEvents, events.Items...)
 		}
 
-		// 4. Verwijder de regel
-		if err := s.store.DeleteRule(r.Context(), ruleID); err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, "Kon regel niet verwijderen")
-			return
-		}
-
-		w.WriteHeader(http.StatusNoContent) // Stuur 204 No Content terug
+		WriteJSON(w, http.StatusOK, allEvents)
 	}
+}
+
+// --- HELPER FUNCTIE (NIEUW) ---
+
+// getCalendarClient initialiseert een Google Calendar client met token refresh
+func (s *Server) getCalendarClient(ctx context.Context, account domain.ConnectedAccount) (*calendar.Service, error) {
+	token := &oauth2.Token{
+		AccessToken:  string(account.AccessToken),
+		RefreshToken: string(account.RefreshToken),
+		Expiry:       account.TokenExpiry,
+		TokenType:    "Bearer",
+	}
+
+	// Refresh token als verlopen
+	if !token.Valid() {
+		newToken, err := s.googleOAuthConfig.TokenSource(ctx, token).Token()
+		if err != nil {
+			return nil, err
+		}
+		// Update token in DB
+		updateParams := store.UpdateConnectedAccountTokenParams{
+			ID:           account.ID,
+			AccessToken:  []byte(newToken.AccessToken),
+			RefreshToken: []byte(newToken.RefreshToken),
+			TokenExpiry:  newToken.Expiry,
+		}
+		if err := s.store.UpdateConnectedAccountToken(ctx, updateParams); err != nil {
+			return nil, err
+		}
+		token = newToken
+	}
+
+	client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
+	return calendar.NewService(ctx, option.WithHTTPClient(client))
 }

@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json" // Zorg dat deze import er is
 	"time"
 
 	"github.com/google/uuid"
@@ -23,7 +24,7 @@ const (
 	StatusPaused  AccountStatus = "paused"
 )
 
-type AutomationLogStatus string // Aangepast voor consistentie
+type AutomationLogStatus string
 
 const (
 	LogPending AutomationLogStatus = "pending"
@@ -32,54 +33,56 @@ const (
 	LogSkipped AutomationLogStatus = "skipped"
 )
 
-// --- Tabel Structs ---
+// --- Tabel Structs (met JSON tags) ---
+
 type User struct {
-	ID        uuid.UUID `db:"id"`
-	Email     string    `db:"email"`
-	Name      string    `db:"name"`
-	CreatedAt time.Time `db:"created_at"`
-	UpdatedAt time.Time `db:"updated_at"`
+	ID        uuid.UUID `db:"id"        json:"id"`
+	Email     string    `db:"email"     json:"email"`
+	Name      *string   `db:"name"      json:"name,omitempty"` // AANGEPAST: van 'string' naar '*string'
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type ConnectedAccount struct {
-	ID             uuid.UUID     `db:"id"`
-	UserID         uuid.UUID     `db:"user_id"`
-	Provider       ProviderType  `db:"provider"`
-	Email          string        `db:"email"`
-	ProviderUserID string        `db:"provider_user_id"`
-	AccessToken    []byte        `db:"access_token"` // Blijft []byte voor encryptie
-	RefreshToken   []byte        `db:"refresh_token"`
-	TokenExpiry    time.Time     `db:"token_expiry"`
-	Scopes         []string      `db:"scopes"` // pgx kan []string naar text[] mappen
-	Status         AccountStatus `db:"status"`
-	CreatedAt      time.Time     `db:"created_at"`
-	UpdatedAt      time.Time     `db:"updated_at"`
-	LastChecked    *time.Time    `db:"last_checked"` // OPGELOST: Moet *time.Time zijn
+	ID             uuid.UUID     `db:"id"                 json:"id"`
+	UserID         uuid.UUID     `db:"user_id"            json:"user_id"`
+	Provider       ProviderType  `db:"provider"           json:"provider"`
+	Email          string        `db:"email"              json:"email"`
+	ProviderUserID string        `db:"provider_user_id"   json:"provider_user_id"`
+	AccessToken    []byte        `db:"access_token"       json:"-"`
+	RefreshToken   []byte        `db:"refresh_token"      json:"-"`
+	TokenExpiry    time.Time     `db:"token_expiry"       json:"token_expiry"`
+	Scopes         []string      `db:"scopes"             json:"scopes"`
+	Status         AccountStatus `db:"status"             json:"status"`
+	CreatedAt      time.Time     `db:"created_at"         json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at"         json:"updated_at"`
+	LastChecked    *time.Time    `db:"last_checked"       json:"last_checked"`
 }
 
 type AutomationRule struct {
-	ID                 uuid.UUID `db:"id"`
-	ConnectedAccountID uuid.UUID `db:"connected_account_id"`
-	Name               string    `db:"name"`
-	IsActive           bool      `db:"is_active"`
-	TriggerConditions  []byte    `db:"trigger_conditions"` // JSONB as []byte
-	ActionParams       []byte    `db:"action_params"`      // JSONB as []byte
-	CreatedAt          time.Time `db:"created_at"`
-	UpdatedAt          time.Time `db:"updated_at"`
+	ID                 uuid.UUID       `db:"id"                     json:"id"`
+	ConnectedAccountID uuid.UUID       `db:"connected_account_id"   json:"connected_account_id"`
+	Name               string          `db:"name"                   json:"name"`
+	IsActive           bool            `db:"is_active"              json:"is_active"`
+	TriggerConditions  json.RawMessage `db:"trigger_conditions"     json:"trigger_conditions"`
+	ActionParams       json.RawMessage `db:"action_params"          json:"action_params"`
+	CreatedAt          time.Time       `db:"created_at"             json:"created_at"`
+	UpdatedAt          time.Time       `db:"updated_at"             json:"updated_at"`
 }
 
 type AutomationLog struct {
-	ID                 int64               `db:"id"` // bigserial mapt naar int64
-	ConnectedAccountID uuid.UUID           `db:"connected_account_id"`
-	RuleID             uuid.UUID           `db:"rule_id"` // pgx kan 'NULL' UUID's aan
-	Timestamp          time.Time           `db:"timestamp"`
-	Status             AutomationLogStatus `db:"status"`
-	TriggerDetails     []byte              `db:"trigger_details"` // JSONB as []byte
-	ActionDetails      []byte              `db:"action_details"`  // JSONB as []byte
-	ErrorMessage       string              `db:"error_message"`   // pgx mapt 'NULL' text naar ""
+	ID                 int64               `db:"id"                     json:"id"`
+	ConnectedAccountID uuid.UUID           `db:"connected_account_id"   json:"connected_account_id"`
+	RuleID             uuid.UUID           `db:"rule_id"                json:"rule_id"`
+	Timestamp          time.Time           `db:"timestamp"              json:"timestamp"`
+	Status             AutomationLogStatus `db:"status"                 json:"status"`
+	TriggerDetails     json.RawMessage     `db:"trigger_details"        json:"trigger_details"`
+	ActionDetails      json.RawMessage     `db:"action_details"         json:"action_details"`
+	ErrorMessage       string              `db:"error_message"          json:"error_message"`
 }
 
-// Aangepaste structs voor JSONB met meer flexibiliteit voor shift automation
+// ... rest van het bestand (TriggerConditions, ActionParams, etc.) ...
+// (Deze hoeven niet aangepast te worden)
 type TriggerConditions struct {
 	SummaryEquals    string   `json:"summary_equals,omitempty"`
 	SummaryContains  []string `json:"summary_contains,omitempty"`
@@ -87,12 +90,11 @@ type TriggerConditions struct {
 }
 
 type ActionParams struct {
-	OffsetMinutes int    `json:"offset_minutes"` // Bijv. -60 voor 1 uur voor shift
+	OffsetMinutes int    `json:"offset_minutes"`
 	NewEventTitle string `json:"new_event_title"`
-	DurationMin   int    `json:"duration_min"` // Bijv. 5 voor reminder duur
+	DurationMin   int    `json:"duration_min"`
 }
 
-// --- OPTIMALISATIE: Structs voor JSONB Logging ---
 type TriggerLogDetails struct {
 	GoogleEventID  string    `json:"google_event_id"`
 	TriggerSummary string    `json:"trigger_summary"`
@@ -103,4 +105,13 @@ type ActionLogDetails struct {
 	CreatedEventID      string    `json:"created_event_id"`
 	CreatedEventSummary string    `json:"created_event_summary"`
 	ReminderTime        time.Time `json:"reminder_time"`
+}
+
+type Event struct {
+	ID          string    `json:"id"`
+	Summary     string    `json:"summary"`
+	Description string    `json:"description"`
+	Start       time.Time `json:"start"`
+	End         time.Time `json:"end"`
+	CalendarId  string    `json:"calendarId"`
 }

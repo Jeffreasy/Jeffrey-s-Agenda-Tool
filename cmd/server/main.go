@@ -73,11 +73,12 @@ func main() {
 		},
 	}
 
-	// 4. Initialiseer de 'Store' Laag
-	dbStore := store.NewStore(pool)
+	// 4. Initialiseer de 'Store' Laag (AANGEPAST)
+	// De store heeft nu de oauth config nodig om zelf tokens te verversen.
+	dbStore := store.NewStore(pool, googleOAuthConfig)
 
-	// 5. Initialiseer de Worker (geef de config mee)
-	appWorker, err := worker.NewWorker(dbStore, googleOAuthConfig)
+	// 5. Initialiseer de Worker (geef de store mee)
+	appWorker, err := worker.NewWorker(dbStore)
 	if err != nil {
 		log.Fatalf("Could not initialize worker: %v", err)
 	}
@@ -85,7 +86,7 @@ func main() {
 	// 6. Start de Worker in de achtergrond
 	appWorker.Start()
 
-	// 7. Initialiseer de API Server (geef de config mee)
+	// 7. Initialiseer de API Server (geef de store en config mee)
 	apiServer := api.NewServer(dbStore, googleOAuthConfig)
 
 	// 8. Start de HTTP Server (op de voorgrond)

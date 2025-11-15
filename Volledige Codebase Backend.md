@@ -1,144 +1,215 @@
-# Inhoudsopgave
+Kijk of alles klopt het moet 100% kloppen:
 
-- [Inhoudsopgave](#inhoudsopgave)
-	- [cmd/server/main.go](#cmdservermaingo)
-	- [db/migrations/000001\_initial\_schema.down.sql](#dbmigrations000001_initial_schemadownsql)
-	- [db/migrations/000001\_initial\_schema.up.sql](#dbmigrations000001_initial_schemaupsql)
-	- [internal/api/handlers.go](#internalapihandlersgo)
-	- [internal/api/json.go](#internalapijsongo)
-	- [internal/api/server.go](#internalapiservergo)
-	- [internal/crypto/crypto.go](#internalcryptocryptogo)
-	- [internal/database/database.go](#internaldatabasedatabasego)
-	- [internal/domain/models.go](#internaldomainmodelsgo)
-	- [internal/store/store.go](#internalstorestorego)
-	- [internal/worker/worker.go](#internalworkerworkergo)
-- [1. APPLICATIE CONFIGURATIE](#1-applicatie-configuratie)
-- [1.5. DATABASE MIGRATIONS](#15-database-migrations)
-- [2. DATABASE (POSTGRES)](#2-database-postgres)
-- [4. BEVEILIGING \& ENCRYPTIE](#4-beveiliging--encryptie)
-- [5. OAUTH CLIENTS (Google)](#5-oauth-clients-google)
-- [NIEUW: Voor dynamic CORS](#nieuw-voor-dynamic-cors)
-- [6. AUTHENTICATIE (JWT) - (NIEUWE SECTIE)](#6-authenticatie-jwt---nieuwe-sectie)
-- [Genereer een sterke, willekeurige 32-byte sleutel](#genereer-een-sterke-willekeurige-32-byte-sleutel)
-	- [.env.example](#envexample)
-	- [.gitignore](#gitignore)
-- [Environment variables](#environment-variables)
-- [Binaries for programs and plugins](#binaries-for-programs-and-plugins)
-- [Test binary, built with `go test -c`](#test-binary-built-with-go-test--c)
-- [Output of the go coverage tool](#output-of-the-go-coverage-tool)
-- [Go workspace file](#go-workspace-file)
-- [IDE files](#ide-files)
-- [OS files](#os-files)
-- [Logs](#logs)
-- [Database files (for local development)](#database-files-for-local-development)
-- [Temporary files](#temporary-files)
-	- [docker-compose.yml](#docker-composeyml)
-	- [go.mod](#gomod)
-	- [go.sum](#gosum)
-	- [README.md](#readmemd)
 
-## cmd/server/main.go
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\cmd\server
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\cmd\server\main.go
+
 package main
 
+
+
 import (
-	"context"
-	// _ "embed" // <-- VERWIJDERD
-	"log"
-	"net/http"
-	"os"
-	"strings"
 
-	// Interne packages
-	"agenda-automator-api/internal/api"
-	"agenda-automator-api/internal/database"
-	"agenda-automator-api/internal/store"
-	"agenda-automator-api/internal/worker"
+    "context"
 
-	"agenda-automator-api/db/migrations" // <-- TOEGEVOEGD
+    // _ "embed" // <-- VERWIJDERD
 
-	// Externe packages
-	"github.com/joho/godotenv"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
+    "log"
+
+    "net/http"
+
+    "os"
+
+    "strings"
+
+
+
+    // Interne packages
+
+    "agenda-automator-api/internal/api"
+
+    "agenda-automator-api/internal/database"
+
+    "agenda-automator-api/internal/store"
+
+    "agenda-automator-api/internal/worker"
+
+
+
+    "agenda-automator-api/db/migrations" // <-- TOEGEVOEGD
+
+
+
+    // Externe packages
+
+    "github.com/joho/godotenv"
+
+    "golang.org/x/oauth2"
+
+    "golang.org/x/oauth2/google"
+
 )
 
+
+
 // VERWIJDERD:
+
 // //go:embed"../db/migrations/000001_initial_schema.up.sql"
+
 // var migrationFile string
 
+
+
 func main() {
-	// 1. Laad configuratie (.env)
-	_ = godotenv.Load()
 
-	// 2. Maak verbinding met de Database
-	pool, err := database.ConnectDB()
-	if err != nil {
-		log.Fatalf("Could not connect to the database: %v", err)
-	}
-	defer pool.Close()
+    // 1. Laad configuratie (.env)
 
-	// -----------------------------------------------------
-	// AANGEPAST: Stap 2.5 - Voer migraties uit
-	run := os.Getenv("RUN_MIGRATIONS")
-	if strings.ToLower(run) == "true" {
-		log.Println("Running database migrations...")
-		// Gebruik de variabele uit de 'migrations' package:
-		if _, err := pool.Exec(context.Background(), migrations.InitialSchemaUp); err != nil {
-			log.Fatalf("Database migrations failed: %v", err)
-		}
-		log.Println("Database migrations applied successfully.")
-	} else {
-		log.Println("Skipping migrations (RUN_MIGRATIONS is not 'true')")
-	}
-	// -----------------------------------------------------
+    _ = godotenv.Load()
 
-	// 3. Initialiseer de Gedeelde OAuth2 Config
-	clientID := os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
-	clientSecret := os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
-	redirectURL := os.Getenv("OAUTH_REDIRECT_URL") // e.g. http://localhost:8080/api/v1/auth/google/callback
 
-	if clientID == "" || clientSecret == "" || redirectURL == "" {
-		log.Fatalf("GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, of OAUTH_REDIRECT_URL is niet ingesteld in .env")
-	}
 
-	googleOAuthConfig := &oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RedirectURL:  redirectURL,
-		Endpoint:     google.Endpoint,
-		Scopes: []string{
-			"https://www.googleapis.com/auth/calendar.events",
-			"https://www.googleapis.com/auth/userinfo.email",
-			"https://www.googleapis.com/auth/userinfo.profile",
-		},
-	}
+    // 2. Maak verbinding met de Database
 
-	// 4. Initialiseer de 'Store' Laag
-	dbStore := store.NewStore(pool)
+    pool, err := database.ConnectDB()
 
-	// 5. Initialiseer de Worker (geef de config mee)
-	appWorker, err := worker.NewWorker(dbStore, googleOAuthConfig)
-	if err != nil {
-		log.Fatalf("Could not initialize worker: %v", err)
-	}
+    if err != nil {
 
-	// 6. Start de Worker in de achtergrond
-	appWorker.Start()
+        log.Fatalf("Could not connect to the database: %v", err)
 
-	// 7. Initialiseer de API Server (geef de config mee)
-	apiServer := api.NewServer(dbStore, googleOAuthConfig)
+    }
 
-	// 8. Start de HTTP Server (op de voorgrond)
-	port := os.Getenv("API_PORT")
-	if port == "" {
-		port = "8080" // Default poort
-	}
+    defer pool.Close()
 
-	log.Printf("Application starting API server on port %s...", port)
 
-	if err := http.ListenAndServe(":"+port, apiServer.Router); err != nil {
-		log.Fatalf("Could not start server: %v", err)
-	}
+
+    // -----------------------------------------------------
+
+    // AANGEPAST: Stap 2.5 - Voer migraties uit
+
+    run := os.Getenv("RUN_MIGRATIONS")
+
+    if strings.ToLower(run) == "true" {
+
+        log.Println("Running database migrations...")
+
+        // Gebruik de variabele uit de 'migrations' package:
+
+        if _, err := pool.Exec(context.Background(), migrations.InitialSchemaUp); err != nil {
+
+            log.Fatalf("Database migrations failed: %v", err)
+
+        }
+
+        log.Println("Database migrations applied successfully.")
+
+    } else {
+
+        log.Println("Skipping migrations (RUN_MIGRATIONS is not 'true')")
+
+    }
+
+    // -----------------------------------------------------
+
+
+
+    // 3. Initialiseer de Gedeelde OAuth2 Config
+
+    clientID := os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
+
+    clientSecret := os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+
+    redirectURL := os.Getenv("OAUTH_REDIRECT_URL") // e.g. http://localhost:8080/api/v1/auth/google/callback
+
+
+
+    if clientID == "" || clientSecret == "" || redirectURL == "" {
+
+        log.Fatalf("GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, of OAUTH_REDIRECT_URL is niet ingesteld in .env")
+
+    }
+
+
+
+    googleOAuthConfig := &oauth2.Config{
+
+        ClientID:     clientID,
+
+        ClientSecret: clientSecret,
+
+        RedirectURL:  redirectURL,
+
+        Endpoint:     google.Endpoint,
+
+        Scopes: []string{
+
+            "https://www.googleapis.com/auth/calendar.events",
+
+            "https://www.googleapis.com/auth/userinfo.email",
+
+            "https://www.googleapis.com/auth/userinfo.profile",
+
+        },
+
+    }
+
+
+
+    // 4. Initialiseer de 'Store' Laag (AANGEPAST)
+
+    // De store heeft nu de oauth config nodig om zelf tokens te verversen.
+
+    dbStore := store.NewStore(pool, googleOAuthConfig)
+
+
+
+    // 5. Initialiseer de Worker (geef de store mee)
+
+    appWorker, err := worker.NewWorker(dbStore)
+
+    if err != nil {
+
+        log.Fatalf("Could not initialize worker: %v", err)
+
+    }
+
+
+
+    // 6. Start de Worker in de achtergrond
+
+    appWorker.Start()
+
+
+
+    // 7. Initialiseer de API Server (geef de store en config mee)
+
+    apiServer := api.NewServer(dbStore, googleOAuthConfig)
+
+
+
+    // 8. Start de HTTP Server (op de voorgrond)
+
+    port := os.Getenv("API_PORT")
+
+    if port == "" {
+
+        port = "8080" // Default poort
+
+    }
+
+
+
+    log.Printf("Application starting API server on port %s...", port)
+
+
+
+    if err := http.ListenAndServe(":"+port, apiServer.Router); err != nil {
+
+        log.Fatalf("Could not start server: %v", err)
+
+    }
+
 }
 
 
@@ -149,102 +220,214 @@ func main() {
 
 
 
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\db\migrations
 
-## db/migrations/000001_initial_schema.down.sql
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\db\migrations\000001_initial_schema.down.sql
+
 -- Rollback initial schema migration
 
+
+
 DROP INDEX IF EXISTS idx_automation_logs_rule_id;
+
 DROP INDEX IF EXISTS idx_automation_logs_account_id_timestamp;
+
 DROP TABLE IF EXISTS automation_logs;
 
+
+
 DROP INDEX IF EXISTS idx_automation_rules_account_id;
+
 DROP TABLE IF EXISTS automation_rules;
 
+
+
 DROP INDEX IF EXISTS idx_connected_accounts_user_id;
+
 DROP TABLE IF EXISTS connected_accounts;
+
+
 
 DROP TABLE IF EXISTS users;
 
+
+
 DROP TYPE IF EXISTS automation_log_status;
+
 DROP TYPE IF EXISTS account_status;
+
 DROP TYPE IF EXISTS provider_type;
 
 
 
 
 
-## db/migrations/000001_initial_schema.up.sql
+
+
+
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\db\migrations\000001_initial_schema.up.sql
+
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TYPE provider_type AS ENUM (
-    'google',
-    'microsoft'
-);
 
-CREATE TYPE account_status AS ENUM (
-    'active',
-    'revoked',
-    'error',
-    'paused'
-);
 
-CREATE TYPE automation_log_status AS ENUM (
-    'pending',
-    'success',
-    'failure',
-    'skipped'
-);
+-- Maak ENUM types alleen aan als ze nog niet bestaan
 
-CREATE TABLE users (
+DO $$
+
+BEGIN
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'provider_type') THEN
+
+        CREATE TYPE provider_type AS ENUM (
+
+            'google',
+
+            'microsoft'
+
+        );
+
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_status') THEN
+
+        CREATE TYPE account_status AS ENUM (
+
+            'active',
+
+            'revoked',
+
+            'error',
+
+            'paused'
+
+        );
+
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'automation_log_status') THEN
+
+        CREATE TYPE automation_log_status AS ENUM (
+
+            'pending',
+
+            'success',
+
+            'failure',
+
+            'skipped'
+
+        );
+
+    END IF;
+
+END$$;
+
+
+
+-- Maak tabellen alleen aan als ze nog niet bestaan
+
+CREATE TABLE IF NOT EXISTS users (
+
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
     email text NOT NULL UNIQUE CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
+
     name text,
+
     created_at timestamptz NOT NULL DEFAULT now(),
+
     updated_at timestamptz NOT NULL DEFAULT now()
+
 );
 
-CREATE TABLE connected_accounts (
+
+
+CREATE TABLE IF NOT EXISTS connected_accounts (
+
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
     user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
     provider provider_type NOT NULL,
+
     email text NOT NULL,
+
     provider_user_id text NOT NULL,
+
     access_token bytea NOT NULL,
+
     refresh_token bytea,
+
     token_expiry timestamptz NOT NULL,
+
     scopes text[],
+
     status account_status NOT NULL DEFAULT 'active',
+
     created_at timestamptz NOT NULL DEFAULT now(),
+
     updated_at timestamptz NOT NULL DEFAULT now(),
+
     last_checked timestamptz,
+
     UNIQUE (user_id, provider, provider_user_id)
-);
-CREATE INDEX idx_connected_accounts_user_id ON connected_accounts(user_id);
 
-CREATE TABLE automation_rules (
+);
+
+CREATE INDEX IF NOT EXISTS idx_connected_accounts_user_id ON connected_accounts(user_id);
+
+
+
+CREATE TABLE IF NOT EXISTS automation_rules (
+
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    connected_account_id uuid NOT NULL REFERENCES connected_accounts(id) ON DELETE CASCADE,
-    name text NOT NULL,
-    is_active boolean NOT NULL DEFAULT true,
-    trigger_conditions jsonb NOT NULL,
-    action_params jsonb NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_automation_rules_account_id ON automation_rules(connected_account_id) WHERE is_active = true;
 
-CREATE TABLE automation_logs (
-    id bigserial PRIMARY KEY,
     connected_account_id uuid NOT NULL REFERENCES connected_accounts(id) ON DELETE CASCADE,
-    rule_id uuid REFERENCES automation_rules(id) ON DELETE SET NULL,
-    timestamp timestamptz NOT NULL DEFAULT now(),
-    status automation_log_status NOT NULL,
-    trigger_details jsonb,
-    action_details jsonb,
-    error_message text
+
+    name text NOT NULL,
+
+    is_active boolean NOT NULL DEFAULT true,
+
+    trigger_conditions jsonb NOT NULL,
+
+    action_params jsonb NOT NULL,
+
+    created_at timestamptz NOT NULL DEFAULT now(),
+
+    updated_at timestamptz NOT NULL DEFAULT now()
+
 );
-CREATE INDEX idx_automation_logs_account_id_timestamp ON automation_logs(connected_account_id, timestamp DESC);
-CREATE INDEX idx_automation_logs_rule_id ON automation_logs(rule_id, timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_automation_rules_account_id ON automation_rules(connected_account_id) WHERE is_active = true;
+
+
+
+CREATE TABLE IF NOT EXISTS automation_logs (
+
+    id bigserial PRIMARY KEY,
+
+    connected_account_id uuid NOT NULL REFERENCES connected_accounts(id) ON DELETE CASCADE,
+
+    rule_id uuid REFERENCES automation_rules(id) ON DELETE SET NULL,
+
+    timestamp timestamptz NOT NULL DEFAULT now(),
+
+    status automation_log_status NOT NULL,
+
+    trigger_details jsonb,
+
+    action_details jsonb,
+
+    error_message text
+
+);
+
+CREATE INDEX IF NOT EXISTS idx_automation_logs_account_id_timestamp ON automation_logs(connected_account_id, timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_automation_logs_rule_id ON automation_logs(rule_id, timestamp DESC);
+
 
 
 
@@ -254,20 +437,35 @@ CREATE INDEX idx_automation_logs_rule_id ON automation_logs(rule_id, timestamp D
 
 
 C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\db\migrations\embed.go
+
 // db/migrations/embed.go
+
+
 
 package migrations
 
+
+
 import "embed"
 
+
+
 //go:embed 000001_initial_schema.up.sql
+
 var InitialSchemaUp string
 
+
+
 //go:embed 000001_initial_schema.down.sql
+
 var InitialSchemaDown string
 
+
+
 // Optioneel: als je ALLE sql-bestanden als een bestandssysteem wilt:
+
 //go:embed *.sql
+
 var SQLFiles embed.FS
 
 
@@ -277,7 +475,16 @@ var SQLFiles embed.FS
 
 
 
-## internal/api/handlers.go
+
+
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\docs
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\api
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\api\handlers.go
 package api
 
 import (
@@ -293,19 +500,20 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-chi/chi/v5" // NIEUWE IMPORT
+	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
+	"google.golang.org/api/calendar/v3"
 	oauth2v2 "google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
 )
 
-// --- AUTH HANDLERS ---
+// --- AUTH HANDLERS (Bestaande code) ---
 
 const oauthStateCookieName = "oauthstate"
 
-// NIEUWE HELPER: Haalt de user ID op die door de middleware in de context is gezet
+// HELPER: Haalt de user ID op die door de middleware in de context is gezet
 func getUserIDFromContext(ctx context.Context) (uuid.UUID, error) {
 	userID, ok := ctx.Value(userContextKey).(uuid.UUID)
 	if !ok {
@@ -442,71 +650,112 @@ func getUserInfo(ctx context.Context, token *oauth2.Token) (*oauth2v2.Userinfo, 
 	return userInfo, nil
 }
 
-// --- CreateUser (Bestaande code) ---
+// --- USER HANDLERS ---
 
-type CreateUserRequest struct {
-	Email string `json:"email"`
-	Name  string `json:"name"`
-}
-
-func (s *Server) handleCreateUser() http.HandlerFunc {
+// handleGetMe haalt de gegevens op van de ingelogde gebruiker.
+func (s *Server) handleGetMe() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req CreateUserRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			WriteJSONError(w, http.StatusBadRequest, "Invalid request body")
-			return
-		}
-
-		if req.Email == "" {
-			WriteJSONError(w, http.StatusBadRequest, "Email is required")
-			return
-		}
-
-		user, err := s.store.CreateUser(r.Context(), req.Email, req.Name)
+		userID, err := getUserIDFromContext(r.Context())
 		if err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, "Could not create user")
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		WriteJSON(w, http.StatusCreated, user)
+		user, err := s.store.GetUserByID(r.Context(), userID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon gebruiker niet ophalen")
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, user)
 	}
 }
 
-// --- handleCreateAutomationRule (Bestaande code) ---
+// --- ACCOUNT HANDLERS ---
 
-type CreateAutomationRuleRequest struct {
-	ConnectedAccountID uuid.UUID       `json:"connected_account_id"`
-	Name               string          `json:"name"`
-	TriggerConditions  json.RawMessage `json:"trigger_conditions"`
-	ActionParams       json.RawMessage `json:"action_params"`
-}
-
-func (s *Server) handleCreateAutomationRule() http.HandlerFunc {
+// handleGetConnectedAccounts haalt alle gekoppelde accounts op voor de gebruiker.
+func (s *Server) handleGetConnectedAccounts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker (uit de context)
 		userID, err := getUserIDFromContext(r.Context())
 		if err != nil {
-			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		// 2. Decodeer de request body
-		var req CreateAutomationRuleRequest
+		accounts, err := s.store.GetAccountsForUser(r.Context(), userID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon accounts niet ophalen")
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, accounts)
+	}
+}
+
+// handleDeleteConnectedAccount verwijdert een gekoppeld account.
+func (s *Server) handleDeleteConnectedAccount() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		account, err := s.store.GetConnectedAccountByID(r.Context(), accountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		err = s.store.DeleteConnectedAccount(r.Context(), accountID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon account niet verwijderen")
+			return
+		}
+
+		WriteJSON(w, http.StatusNoContent, nil)
+	}
+}
+
+// --- RULE HANDLERS ---
+
+// handleCreateRule creëert een nieuwe automation rule.
+func (s *Server) handleCreateRule() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		account, err := s.store.GetConnectedAccountByID(r.Context(), accountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		var req domain.AutomationRule
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			WriteJSONError(w, http.StatusBadRequest, "Invalid request body")
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body")
 			return
 		}
 
-		// 3. (KRITIEK) Controleer of deze gebruiker wel de eigenaar is van het account
-		if err := s.store.VerifyAccountOwnership(r.Context(), req.ConnectedAccountID, userID); err != nil {
-			log.Printf("Forbidden access attempt: User %s tried to access account %s", userID, req.ConnectedAccountID)
-			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot dit account")
-			return
-		}
-
-		// 4. Ga door met het aanmaken van de regel (nu veilig)
 		params := store.CreateAutomationRuleParams{
-			ConnectedAccountID: req.ConnectedAccountID, // We weten nu dat dit ID veilig is
+			ConnectedAccountID: accountID,
 			Name:               req.Name,
 			TriggerConditions:  req.TriggerConditions,
 			ActionParams:       req.ActionParams,
@@ -514,7 +763,7 @@ func (s *Server) handleCreateAutomationRule() http.HandlerFunc {
 
 		rule, err := s.store.CreateAutomationRule(r.Context(), params)
 		if err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, "Kon regel niet aanmaken")
+			WriteJSONError(w, http.StatusInternalServerError, "Kon rule niet creëren")
 			return
 		}
 
@@ -522,188 +771,463 @@ func (s *Server) handleCreateAutomationRule() http.HandlerFunc {
 	}
 }
 
-// --- NIEUWE READ HANDLERS ---
-
-// handleGetConnectedAccounts haalt alle accounts op voor de ingelogde gebruiker
-func (s *Server) handleGetConnectedAccounts() http.HandlerFunc {
+// handleGetRules haalt alle rules op voor een account.
+func (s *Server) handleGetRules() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
-		userID, err := getUserIDFromContext(r.Context())
-		if err != nil {
-			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
-			return
-		}
-
-		// 2. Haal de accounts op uit de store
-		accounts, err := s.store.GetAccountsForUser(r.Context(), userID)
-		if err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, "Kon accounts niet ophalen")
-			return
-		}
-
-		// 3. (BELANGRIJK) Verberg de versleutelde tokens voordat we ze terugsturen.
-		// We willen nooit access/refresh tokens (zelfs versleuteld) naar de client sturen.
-		type PublicAccount struct {
-			ID             uuid.UUID           `json:"id"`
-			UserID         uuid.UUID           `json:"user_id"`
-			Provider       domain.ProviderType `json:"provider"`
-			Email          string              `json:"email"`
-			Status         domain.AccountStatus`json:"status"`
-			ProviderUserID string              `json:"provider_user_id"`
-			CreatedAt      time.Time           `json:"created_at"`
-		}
-
-		publicAccounts := make([]PublicAccount, len(accounts))
-		for i, acc := range accounts {
-			publicAccounts[i] = PublicAccount{
-				ID:             acc.ID,
-				UserID:         acc.UserID,
-				Provider:       acc.Provider,
-				Email:          acc.Email,
-				Status:         acc.Status,
-				ProviderUserID: acc.ProviderUserID,
-				CreatedAt:      acc.CreatedAt,
-			}
-		}
-
-		WriteJSON(w, http.StatusOK, publicAccounts)
-	}
-}
-
-// handleGetAutomationRules haalt alle regels op voor een specifiek, eigendom
-func (s *Server) handleGetAutomationRules() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
-		userID, err := getUserIDFromContext(r.Context())
-		if err != nil {
-			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
-			return
-		}
-
-		// 2. Haal de 'accountID' op uit de URL path (e.g. /accounts/uuid-hier/rules)
-		accountIDStr := chi.URLParam(r, "accountID")
+		accountIDStr := chi.URLParam(r, "accountId")
 		accountID, err := uuid.Parse(accountIDStr)
 		if err != nil {
-			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID formaat")
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
 			return
 		}
 
-		// 3. (KRITIEK) Controleer eigendom
-		if err := s.store.VerifyAccountOwnership(r.Context(), accountID, userID); err != nil {
-			log.Printf("Forbidden access attempt: User %s tried to access rules for account %s", userID, accountID)
-			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot dit account")
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		// 4. Haal de regels op (nu veilig)
+		account, err := s.store.GetConnectedAccountByID(r.Context(), accountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
 		rules, err := s.store.GetRulesForAccount(r.Context(), accountID)
 		if err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, "Kon regels niet ophalen")
+			WriteJSONError(w, http.StatusInternalServerError, "Kon rules niet ophalen")
 			return
 		}
 
-		// De 'rules' struct bevat geen geheimen, dus we kunnen het direct teruggeven.
 		WriteJSON(w, http.StatusOK, rules)
 	}
 }
 
-// --- NIEUWE HANDLER (Feature 1) ---
-
-// PublicAutomationLog is een struct die we veilig kunnen teruggeven aan de client.
-type PublicAutomationLog struct {
-	ID             int64                 `json:"id"`
-	Timestamp      time.Time             `json:"timestamp"`
-	Status         domain.AutomationLogStatus `json:"status"`
-	TriggerDetails json.RawMessage       `json:"trigger_details"`
-	ActionDetails  json.RawMessage       `json:"action_details"`
-	ErrorMessage   string                `json:"error_message"`
-}
-
-// handleGetAutomationLogs haalt de recente logs op voor een account.
-func (s *Server) handleGetAutomationLogs() http.HandlerFunc {
+// handleUpdateRule update een bestaande rule.
+func (s *Server) handleUpdateRule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
+		ruleIDStr := chi.URLParam(r, "ruleId")
+		ruleID, err := uuid.Parse(ruleIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig rule ID")
+			return
+		}
+
 		userID, err := getUserIDFromContext(r.Context())
 		if err != nil {
-			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		// 2. Haal de 'accountID' op uit de URL path
-		accountIDStr := chi.URLParam(r, "accountID")
+		rule, err := s.store.GetRuleByID(r.Context(), ruleID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Rule niet gevonden")
+			return
+		}
+
+		account, err := s.store.GetConnectedAccountByID(r.Context(), rule.ConnectedAccountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusForbidden, "Geen toegang tot deze rule")
+			return
+		}
+
+		var req domain.AutomationRule
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body")
+			return
+		}
+
+		params := store.UpdateRuleParams{
+			RuleID:            ruleID,
+			Name:              req.Name,
+			TriggerConditions: req.TriggerConditions,
+			ActionParams:      req.ActionParams,
+		}
+
+		updatedRule, err := s.store.UpdateRule(r.Context(), params)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon rule niet updaten")
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, updatedRule)
+	}
+}
+
+// handleDeleteRule verwijdert een rule.
+func (s *Server) handleDeleteRule() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ruleIDStr := chi.URLParam(r, "ruleId")
+		ruleID, err := uuid.Parse(ruleIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig rule ID")
+			return
+		}
+
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		rule, err := s.store.GetRuleByID(r.Context(), ruleID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Rule niet gevonden")
+			return
+		}
+
+		account, err := s.store.GetConnectedAccountByID(r.Context(), rule.ConnectedAccountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusForbidden, "Geen toegang tot deze rule")
+			return
+		}
+
+		err = s.store.DeleteRule(r.Context(), ruleID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon rule niet verwijderen")
+			return
+		}
+
+		WriteJSON(w, http.StatusNoContent, nil)
+	}
+}
+
+// handleToggleRule togglet de active status van een rule.
+func (s *Server) handleToggleRule() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ruleIDStr := chi.URLParam(r, "ruleId")
+		ruleID, err := uuid.Parse(ruleIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig rule ID")
+			return
+		}
+
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		rule, err := s.store.GetRuleByID(r.Context(), ruleID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Rule niet gevonden")
+			return
+		}
+
+		account, err := s.store.GetConnectedAccountByID(r.Context(), rule.ConnectedAccountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusForbidden, "Geen toegang tot deze rule")
+			return
+		}
+
+		updatedRule, err := s.store.ToggleRuleStatus(r.Context(), ruleID)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon rule status niet togglen")
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, updatedRule)
+	}
+}
+
+// --- LOG HANDLERS ---
+
+// handleGetAutomationLogs haalt logs op voor een account.
+func (s *Server) handleGetAutomationLogs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
 		accountID, err := uuid.Parse(accountIDStr)
 		if err != nil {
-			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID formaat")
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
 			return
 		}
 
-		// 3. (KRITIEK) Controleer eigendom
-		if err := s.store.VerifyAccountOwnership(r.Context(), accountID, userID); err != nil {
-			log.Printf("Forbidden access attempt: User %s tried to access logs for account %s", userID, accountID)
-			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot dit account")
+		userID, err := getUserIDFromContext(r.Context())
+		if err != nil {
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		// 4. Haal de logs op (met een limiet)
-		logs, err := s.store.GetLogsForAccount(r.Context(), accountID, 20) // Limiet op 20
+		account, err := s.store.GetConnectedAccountByID(r.Context(), accountID)
+		if err != nil || account.UserID != userID {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		limit := 50 // Default limit
+		logs, err := s.store.GetLogsForAccount(r.Context(), accountID, limit)
 		if err != nil {
 			WriteJSONError(w, http.StatusInternalServerError, "Kon logs niet ophalen")
 			return
 		}
 
-		// 5. Converteer naar publieke struct (verbergt interne DB details)
-		publicLogs := make([]PublicAutomationLog, len(logs))
-		for i, log := range logs {
-			publicLogs[i] = PublicAutomationLog{
-				ID:             log.ID,
-				Timestamp:      log.Timestamp,
-				Status:         log.Status,
-				TriggerDetails: log.TriggerDetails, // Is al []byte/json.RawMessage
-				ActionDetails:  log.ActionDetails,
-				ErrorMessage:   log.ErrorMessage,
-			}
-		}
-
-		WriteJSON(w, http.StatusOK, publicLogs)
+		WriteJSON(w, http.StatusOK, logs)
 	}
 }
 
-// --- NIEUWE HANDLER (Feature 2) ---
+// --- NIEUWE HANDLERS VOOR EVENT CRUD ---
 
-// handleDeleteAutomationRule verwijdert een regel.
-func (s *Server) handleDeleteAutomationRule() http.HandlerFunc {
+// handleCreateEvent creëert een nieuw event in Google Calendar
+func (s *Server) handleCreateEvent() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 1. Haal de ID op van de GEAUTHENTICEERDE gebruiker
+		accountIDStr := chi.URLParam(r, "accountId")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		calendarID := r.URL.Query().Get("calendarId") // Ondersteun secundaire calendars
+		if calendarID == "" {
+			calendarID = "primary"
+		}
+
+		var req calendar.Event
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body")
+			return
+		}
+
+		ctx := r.Context()
+		account, err := s.store.GetConnectedAccountByID(ctx, accountID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		client, err := s.getCalendarClient(ctx, account)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren")
+			return
+		}
+
+		createdEvent, err := client.Events.Insert(calendarID, &req).Do()
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon event niet creëren: %v", err))
+			return
+		}
+
+		WriteJSON(w, http.StatusCreated, createdEvent)
+	}
+}
+
+// handleUpdateEvent update een bestaand event
+func (s *Server) handleUpdateEvent() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
+		eventID := chi.URLParam(r, "eventId")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		calendarID := r.URL.Query().Get("calendarId") // Ondersteun secundaire calendars
+		if calendarID == "" {
+			calendarID = "primary"
+		}
+
+		var req calendar.Event
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body")
+			return
+		}
+
+		ctx := r.Context()
+		account, err := s.store.GetConnectedAccountByID(ctx, accountID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		client, err := s.getCalendarClient(ctx, account)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren")
+			return
+		}
+
+		updatedEvent, err := client.Events.Update(calendarID, eventID, &req).Do()
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon event niet updaten: %v", err))
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, updatedEvent)
+	}
+}
+
+// handleDeleteEvent verwijdert een event
+func (s *Server) handleDeleteEvent() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
+		eventID := chi.URLParam(r, "eventId")
+		calendarID := r.URL.Query().Get("calendarId") // Optioneel param voor secundaire calendar
+		if calendarID == "" {
+			calendarID = "primary"
+		}
+
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		ctx := r.Context()
+		account, err := s.store.GetConnectedAccountByID(ctx, accountID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		client, err := s.getCalendarClient(ctx, account)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren")
+			return
+		}
+
+		err = client.Events.Delete(calendarID, eventID).Do()
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon event niet verwijderen: %v", err))
+			return
+		}
+
+		WriteJSON(w, http.StatusNoContent, nil)
+	}
+}
+
+// --- BIJGEWERKTE HANDLER VOOR EVENT FETCH (MET MULTI-CALENDAR SUPPORT) ---
+
+// handleGetCalendarEvents haalt events op (nu met optionele calendarId param)
+func (s *Server) handleGetCalendarEvents() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accountIDStr := chi.URLParam(r, "accountId")
+		accountID, err := uuid.Parse(accountIDStr)
+		if err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldig account ID")
+			return
+		}
+
+		calendarID := r.URL.Query().Get("calendarId") // Nieuw: Ondersteun secundaire calendars
+		if calendarID == "" {
+			calendarID = "primary"
+		}
+
+		timeMin := time.Now()
+		timeMax := timeMin.AddDate(0, 3, 0) // 3 maanden vooruit (bestaand)
+
+		ctx := r.Context()
+		account, err := s.store.GetConnectedAccountByID(ctx, accountID)
+		if err != nil {
+			WriteJSONError(w, http.StatusNotFound, "Account niet gevonden")
+			return
+		}
+
+		client, err := s.getCalendarClient(ctx, account)
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren")
+			return
+		}
+
+		events, err := client.Events.List(calendarID).
+			TimeMin(timeMin.Format(time.RFC3339)).
+			TimeMax(timeMax.Format(time.RFC3339)).
+			SingleEvents(true).
+			OrderBy("startTime").
+			Do()
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon events niet ophalen: %v", err))
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, events.Items)
+	}
+}
+
+// --- NIEUWE HANDLER VOOR AGGREGATED EVENTS ---
+
+// handleGetAggregatedEvents haalt events op van meerdere accounts/calendars
+func (s *Server) handleGetAggregatedEvents() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		userID, err := getUserIDFromContext(r.Context())
 		if err != nil {
-			WriteJSONError(w, http.StatusUnauthorized, "Niet geauthenticeerd")
+			WriteJSONError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 
-		// 2. Haal de 'ruleID' op uit de URL path
-		ruleIDStr := chi.URLParam(r, "ruleID")
-		ruleID, err := uuid.Parse(ruleIDStr)
-		if err != nil {
-			WriteJSONError(w, http.StatusBadRequest, "Ongeldig regel ID formaat")
+		// Parse request body: lijst van {accountId, calendarId} pairs
+		type AggRequest struct {
+			Accounts []struct {
+				AccountID  string `json:"accountId"`
+				CalendarID string `json:"calendarId"`
+			} `json:"accounts"`
+		}
+		var req AggRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body")
 			return
 		}
 
-		// 3. (KRITIEK) Controleer eigendom
-		if err := s.store.VerifyRuleOwnership(r.Context(), ruleID, userID); err != nil {
-			log.Printf("Forbidden access attempt: User %s tried to delete rule %s", userID, ruleID)
-			WriteJSONError(w, http.StatusForbidden, "Je hebt geen toegang tot deze regel")
-			return
+		timeMin := time.Now()
+		timeMax := timeMin.AddDate(0, 3, 0)
+
+		var allEvents []*calendar.Event
+		ctx := r.Context()
+
+		for _, acc := range req.Accounts {
+			accountID, err := uuid.Parse(acc.AccountID)
+			if err != nil {
+				continue // Skip invalid
+			}
+
+			account, err := s.store.GetConnectedAccountByID(ctx, accountID)
+			if err != nil || account.UserID != userID {
+				continue // Skip not found or not owned
+			}
+
+			client, err := s.getCalendarClient(ctx, account)
+			if err != nil {
+				continue
+			}
+
+			calID := acc.CalendarID
+			if calID == "" {
+				calID = "primary"
+			}
+
+			events, err := client.Events.List(calID).
+				TimeMin(timeMin.Format(time.RFC3339)).
+				TimeMax(timeMax.Format(time.RFC3339)).
+				SingleEvents(true).
+				OrderBy("startTime").
+				Do()
+			if err != nil {
+				continue
+			}
+
+			allEvents = append(allEvents, events.Items...)
 		}
 
-		// 4. Verwijder de regel
-		if err := s.store.DeleteRule(r.Context(), ruleID); err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, "Kon regel niet verwijderen")
-			return
-		}
-
-		w.WriteHeader(http.StatusNoContent) // Stuur 204 No Content terug
+		WriteJSON(w, http.StatusOK, allEvents)
 	}
 }
+
+// --- HELPER FUNCTIE (NIEUW) ---
+
+// getCalendarClient initialiseert een Google Calendar client met token refresh
+func (s *Server) getCalendarClient(ctx context.Context, account domain.ConnectedAccount) (*calendar.Service, error) {
+
+	// 1. Gebruik de centrale store-logica.
+	// Deze functie doet ALLES: decrypten, checken, refreshen, en re-encrypten.
+	token, err := s.store.GetValidTokenForAccount(ctx, account.ID)
+	if err != nil {
+		// De store handelt ook 'revoked' tokens af, dus we hoeven alleen de fout terug te geven.
+		return nil, fmt.Errorf("kon geen geldig token voor account ophalen: %w", err)
+	}
+
+	// 2. We hebben nu een gegarandeerd geldig token. Gebruik het.
+	client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
+
+	return calendar.NewService(ctx, option.WithHTTPClient(client))
 }
 
 
@@ -712,29 +1236,48 @@ func (s *Server) handleDeleteAutomationRule() http.HandlerFunc {
 
 
 
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\api\json.go
 
-
-## internal/api/json.go
 package api
 
+
+
 import (
-	"encoding/json"
-	"log"
-	"net/http"
+
+    "encoding/json"
+
+    "log"
+
+    "net/http"
+
 )
+
+
 
 // WriteJSON schrijft een standaard JSON response
+
 func WriteJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Printf("could not write json response: %v", err)
-	}
+
+    w.Header().Set("Content-Type", "application/json")
+
+    w.WriteHeader(status)
+
+    if err := json.NewEncoder(w).Encode(data); err != nil {
+
+        log.Printf("could not write json response: %v", err)
+
+    }
+
 }
+
+
 
 // WriteJSONError schrijft een standaard JSON error response
+
 func WriteJSONError(w http.ResponseWriter, status int, message string) {
-	WriteJSON(w, status, map[string]string{"error": message})
+
+    WriteJSON(w, status, map[string]string{"error": message})
+
 }
 
 
@@ -745,259 +1288,434 @@ func WriteJSONError(w http.ResponseWriter, status int, message string) {
 
 
 
-## internal/api/server.go
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\api\server.go
+
 package api
 
-import (
-	"agenda-automator-api/internal/store"
-	"context" // NIEUWE IMPORT
-	"fmt"     // NIEUWE IMPORT
-	"net/http"
-	"os"
-	"strings"
-	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
-	"github.com/golang-jwt/jwt/v5" // NIEUWE IMPORT
-	"github.com/google/uuid"       // NIEUWE IMPORT
-	"golang.org/x/oauth2"
+
+import (
+
+    "agenda-automator-api/internal/store"
+
+    "context"
+
+    "fmt"
+
+    "net/http"
+
+    "os"
+
+    "strings"
+
+
+
+    "github.com/go-chi/chi/v5"
+
+    "github.com/go-chi/cors"
+
+    "github.com/golang-jwt/jwt/v5"
+
+    "github.com/google/uuid"
+
+    "golang.org/x/oauth2"
+
 )
 
-// Server is de hoofdstruct voor je API
-type Server struct {
-	store             store.Storer
-	Router            *chi.Mux
-	googleOAuthConfig *oauth2.Config
-}
 
-// NIEUW: Context key voor de user ID
+
 type contextKey string
 
-const userContextKey contextKey = "userID"
 
-// NewServer (AANGEPAST) - accepteert nu de config
-func NewServer(s store.Storer, oauthCfg *oauth2.Config) *Server {
-	r := chi.NewRouter()
 
-	// --- Middleware ---
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(60 * time.Second))
+var userContextKey contextKey = "user_id"
 
-	// CORS dynamic vanuit .env
-	allowedOrigins := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
-	if len(allowedOrigins) == 0 {
-		allowedOrigins = []string{"http://localhost:3000"}
-	}
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   allowedOrigins,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300,
-	}))
 
-	server := &Server{
-		store:             s,
-		Router:            r,
-		googleOAuthConfig: oauthCfg,
-	}
 
-	// Koppel de routes aan functies
-	server.registerRoutes()
+type Server struct {
 
-	return server
-}
+    Router            *chi.Mux
 
-// registerRoutes (AANGEPAST om routes te beveiligen)
-func (s *Server) registerRoutes() {
-	// We groeperen alle v1 routes onder /api/v1
-	s.Router.Route("/api/v1", func(r chi.Router) {
+    store             store.Storer
 
-		// --- Publieke Routes (geen auth nodig) ---
-		r.Get("/health", s.handleHealthCheck())
-		r.Get("/auth/google/login", s.handleGoogleLogin())
-		r.Get("/auth/google/callback", s.handleGoogleCallback())
-		r.Post("/users", s.handleCreateUser()) // (Waarschijnlijk overbodig, maar laten staan)
+    googleOAuthConfig *oauth2.Config
 
-		// --- Beveiligde Routes (wel auth nodig) ---
-		// Alle routes binnen deze group vereisen een geldig JWT token
-		r.Group(func(r chi.Router) {
-			r.Use(s.jwtAuthMiddleware())
-
-			// --- Accounts Routes ---
-			// GET /api/v1/accounts (NIEUW)
-			r.Get("/accounts", s.handleGetConnectedAccounts())
-
-			// --- Rules Routes ---
-			// POST /api/v1/rules (Was al beveiligd)
-			r.Post("/rules", s.handleCreateAutomationRule())
-
-			// GET /api/v1/accounts/{accountID}/rules (NIEUW)
-			r.Get("/accounts/{accountID}/rules", s.handleGetAutomationRules())
-
-			// --- NIEUW (Feature 2) ---
-			// DELETE /api/v1/rules/{ruleID}
-			r.Delete("/rules/{ruleID}", s.handleDeleteAutomationRule())
-
-			// --- NIEUW (Feature 1) ---
-			// GET /api/v1/accounts/{accountID}/logs
-			r.Get("/accounts/{accountID}/logs", s.handleGetAutomationLogs())
-		})
-	})
-}
-
-// handleHealthCheck (Bestaande code)
-func (s *Server) handleHealthCheck() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		WriteJSON(w, http.StatusOK, map[string]string{
-			"status": "ok",
-		})
-	}
-}
-
-// --- NIEUWE AUTHENTICATIE MIDDLEWARE ---
-
-func (s *Server) jwtAuthMiddleware() func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			jwtKey := []byte(os.Getenv("JWT_SECRET_KEY"))
-			if len(jwtKey) == 0 {
-				WriteJSONError(w, http.StatusInternalServerError, "JWT_SECRET_KEY is niet geconfigureerd")
-				return
-			}
-
-			// 1. Haal de token-string op uit de "Authorization" header
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
-				WriteJSONError(w, http.StatusUnauthorized, "Geen Authorization header")
-				return
-			}
-
-			// 2. Controleer of het "Bearer " prefix heeft
-			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-			if tokenString == authHeader {
-				WriteJSONError(w, http.StatusUnauthorized, "Ongeldig token formaat (mist 'Bearer ' prefix)")
-				return
-			}
-
-			// 3. Valideer het token
-			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-				// Controleer de signing method
-				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("onverwachte signing method: %v", token.Header["alg"])
-				}
-				return jwtKey, nil
-			})
-
-			if err != nil {
-				WriteJSONError(w, http.StatusUnauthorized, fmt.Sprintf("Ongeldig token: %v", err))
-				return
-			}
-
-			// 4. Haal de claims (data) en user_id eruit
-			if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-				userIDStr, ok := claims["user_id"].(string)
-				if !ok {
-					WriteJSONError(w, http.StatusUnauthorized, "Ongeldige token claims (geen user_id)")
-					return
-				}
-
-				userID, err := uuid.Parse(userIDStr)
-				if err != nil {
-					WriteJSONError(w, http.StatusUnauthorized, "Ongeldige user_id in token")
-					return
-				}
-
-				// 5. Voeg de user_id toe aan de context voor de volgende handlers
-				ctx := context.WithValue(r.Context(), userContextKey, userID)
-				next.ServeHTTP(w, r.WithContext(ctx))
-			} else {
-				WriteJSONError(w, http.StatusUnauthorized, "Ongeldig token")
-			}
-		})
-	}
 }
 
 
 
+func NewServer(s store.Storer, oauthConfig *oauth2.Config) *Server {
+
+    server := &Server{
+
+        Router:            chi.NewRouter(),
+
+        store:             s,
+
+        googleOAuthConfig: oauthConfig,
+
+    }
+
+
+
+    server.setupMiddleware()
+
+    server.setupRoutes()
+
+
+
+    return server
+
+}
+
+
+
+func (s *Server) setupMiddleware() {
+
+    allowedOrigins := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
+
+    s.Router.Use(cors.Handler(cors.Options{
+
+        AllowedOrigins:   allowedOrigins,
+
+        AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+
+        AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+
+        ExposedHeaders:   []string{"Link"},
+
+        AllowCredentials: true,
+
+        MaxAge:           300,
+
+    }))
+
+}
+
+
+
+func (s *Server) setupRoutes() {
+
+    s.Router.Route("/api/v1", func(r chi.Router) {
+
+        // Auth routes (bestaand)
+
+        r.Get("/auth/google/login", s.handleGoogleLogin())
+
+        r.Get("/auth/google/callback", s.handleGoogleCallback())
+
+
+
+        // Protected routes
+
+        r.Group(func(r chi.Router) {
+
+            r.Use(s.authMiddleware)
+
+
+
+            // User routes (bestaand)
+
+            r.Get("/me", s.handleGetMe())
+
+            r.Get("/users/me", s.handleGetMe())
+
+
+
+            // Account routes (bestaand)
+
+            r.Get("/accounts", s.handleGetConnectedAccounts())
+
+            r.Delete("/accounts/{accountId}", s.handleDeleteConnectedAccount())
+
+
+
+            // Rule routes (bestaand)
+
+            r.Post("/accounts/{accountId}/rules", s.handleCreateRule())
+
+            r.Get("/accounts/{accountId}/rules", s.handleGetRules())
+
+            r.Put("/rules/{ruleId}", s.handleUpdateRule())
+
+            r.Delete("/rules/{ruleId}", s.handleDeleteRule())
+
+            r.Put("/rules/{ruleId}/toggle", s.handleToggleRule())
+
+
+
+            // Log routes (bestaand)
+
+            r.Get("/accounts/{accountId}/logs", s.handleGetAutomationLogs())
+
+
+
+            // Calendar routes (bijgewerkt + nieuw)
+
+            r.Get("/accounts/{accountId}/calendar/events", s.handleGetCalendarEvents()) // Bijgewerkt voor multi-calendar
+
+
+
+            // NIEUW: CRUD voor events
+
+            r.Post("/accounts/{accountId}/calendar/events", s.handleCreateEvent())
+
+            r.Put("/accounts/{accountId}/calendar/events/{eventId}", s.handleUpdateEvent())
+
+            r.Delete("/accounts/{accountId}/calendar/events/{eventId}", s.handleDeleteEvent())
+
+
+
+            // NIEUW: Aggregated events
+
+            r.Post("/calendar/aggregated-events", s.handleGetAggregatedEvents())
+
+        })
+
+    })
+
+}
+
+
+
+// authMiddleware valideert JWT en zet user ID in context
+
+func (s *Server) authMiddleware(next http.Handler) http.Handler {
+
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+        authHeader := r.Header.Get("Authorization")
+
+        if authHeader == "" {
+
+            WriteJSONError(w, http.StatusUnauthorized, "Geen authenticatie header")
+
+            return
+
+        }
+
+
+
+        tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+
+        jwtKey := []byte(os.Getenv("JWT_SECRET_KEY"))
+
+
+
+        token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+
+            if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+
+                return nil, fmt.Errorf("ongeldige signing method")
+
+            }
+
+            return jwtKey, nil
+
+        })
+
+
+
+        if err != nil || !token.Valid {
+
+            WriteJSONError(w, http.StatusUnauthorized, "Ongeldige token")
+
+            return
+
+        }
+
+
+
+        claims, ok := token.Claims.(jwt.MapClaims)
+
+        if !ok {
+
+            WriteJSONError(w, http.StatusUnauthorized, "Ongeldige claims")
+
+            return
+
+        }
+
+
+
+        userIDStr, ok := claims["user_id"].(string)
+
+        if !ok {
+
+            WriteJSONError(w, http.StatusUnauthorized, "Geen user ID in token")
+
+            return
+
+        }
+
+
+
+        userID, err := uuid.Parse(userIDStr)
+
+        if err != nil {
+
+            WriteJSONError(w, http.StatusUnauthorized, "Ongeldig user ID")
+
+            return
+
+        }
+
+
+
+        ctx := context.WithValue(r.Context(), userContextKey, userID)
+
+        next.ServeHTTP(w, r.WithContext(ctx))
+
+    })
+
+}
 
 
 
 
 
 
-## internal/crypto/crypto.go
+
+
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\crypto
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\crypto\crypto.go
+
 package crypto
 
+
+
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"fmt"
-	"io"
-	"os"
+
+    "crypto/aes"
+
+    "crypto/cipher"
+
+    "crypto/rand"
+
+    "fmt"
+
+    "io"
+
+    "os"
+
 )
+
+
 
 // Encrypt versleutelt data met AES-GCM
+
 func Encrypt(plaintext []byte) ([]byte, error) {
-	key := []byte(os.Getenv("ENCRYPTION_KEY"))
-	if len(key) != 32 {
-		return nil, fmt.Errorf("ENCRYPTION_KEY must be 32 bytes (AES-256)")
-	}
 
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
+    key := []byte(os.Getenv("ENCRYPTION_KEY"))
 
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
+    if len(key) != 32 {
 
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, err
-	}
+        return nil, fmt.Errorf("ENCRYPTION_KEY must be 32 bytes (AES-256)")
 
-	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
-	return ciphertext, nil
+    }
+
+
+
+    block, err := aes.NewCipher(key)
+
+    if err != nil {
+
+        return nil, err
+
+    }
+
+
+
+    gcm, err := cipher.NewGCM(block)
+
+    if err != nil {
+
+        return nil, err
+
+    }
+
+
+
+    nonce := make([]byte, gcm.NonceSize())
+
+    if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+
+        return nil, err
+
+    }
+
+
+
+    ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
+
+    return ciphertext, nil
+
 }
+
+
 
 // Decrypt ontcijfert data met AES-GCM
+
 func Decrypt(ciphertext []byte) ([]byte, error) {
-	key := []byte(os.Getenv("ENCRYPTION_KEY"))
-	if len(key) != 32 {
-		return nil, fmt.Errorf("ENCRYPTION_KEY must be 32 bytes (AES-256)")
-	}
 
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
+    key := []byte(os.Getenv("ENCRYPTION_KEY"))
 
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
+    if len(key) != 32 {
 
-	nonceSize := gcm.NonceSize()
-	if len(ciphertext) < nonceSize {
-		return nil, fmt.Errorf("ciphertext too short")
-	}
+        return nil, fmt.Errorf("ENCRYPTION_KEY must be 32 bytes (AES-256)")
 
-	nonce, actualCiphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+    }
 
-	plaintext, err := gcm.Open(nil, nonce, actualCiphertext, nil)
-	if err != nil {
-		return nil, fmt.Errorf("decryption failed: %v", err)
-	}
 
-	return plaintext, nil
+
+    block, err := aes.NewCipher(key)
+
+    if err != nil {
+
+        return nil, err
+
+    }
+
+
+
+    gcm, err := cipher.NewGCM(block)
+
+    if err != nil {
+
+        return nil, err
+
+    }
+
+
+
+    nonceSize := gcm.NonceSize()
+
+    if len(ciphertext) < nonceSize {
+
+        return nil, fmt.Errorf("ciphertext too short")
+
+    }
+
+
+
+    nonce, actualCiphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+
+
+
+    plaintext, err := gcm.Open(nil, nonce, actualCiphertext, nil)
+
+    if err != nil {
+
+        return nil, fmt.Errorf("decryption failed: %v", err)
+
+    }
+
+
+
+    return plaintext, nil
+
 }
 
 
@@ -1008,38 +1726,72 @@ func Decrypt(ciphertext []byte) ([]byte, error) {
 
 
 
-## internal/database/database.go
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\database
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\database\database.go
+
 package database
 
-import (
-	"context"
-	"fmt"
-	"log"
-	"os"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+
+import (
+
+    "context"
+
+    "fmt"
+
+    "log"
+
+    "os"
+
+
+
+    "github.com/jackc/pgx/v5/pgxpool"
+
 )
 
+
+
 // ConnectDB maakt en test een verbinding met de database.
+
 func ConnectDB() (*pgxpool.Pool, error) {
-	dbUrl := os.Getenv("DATABASE_URL")
-	log.Println("Connecting to DB URL:", dbUrl)
-	if dbUrl == "" {
-		return nil, fmt.Errorf("DATABASE_URL environment variable is not set")
-	}
 
-	pool, err := pgxpool.New(context.Background(), dbUrl)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create connection pool: %v", err)
-	}
+    dbUrl := os.Getenv("DATABASE_URL")
 
-	if err := pool.Ping(context.Background()); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("unable to connect to database: %v", err)
-	}
+    log.Println("Connecting to DB URL:", dbUrl)
 
-	log.Println("Successfully connected to database.")
-	return pool, nil
+    if dbUrl == "" {
+
+        return nil, fmt.Errorf("DATABASE_URL environment variable is not set")
+
+    }
+
+
+
+    pool, err := pgxpool.New(context.Background(), dbUrl)
+
+    if err != nil {
+
+        return nil, fmt.Errorf("unable to create connection pool: %v", err)
+
+    }
+
+
+
+    if err := pool.Ping(context.Background()); err != nil {
+
+        pool.Close()
+
+        return nil, fmt.Errorf("unable to connect to database: %v", err)
+
+    }
+
+
+
+    log.Println("Successfully connected to database.")
+
+    return pool, nil
+
 }
 
 
@@ -1049,112 +1801,243 @@ func ConnectDB() (*pgxpool.Pool, error) {
 
 
 
-## internal/domain/models.go
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\domain
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\domain\models.go
+
 package domain
 
-import (
-	"time"
 
-	"github.com/google/uuid"
+
+import (
+
+    "encoding/json" // Zorg dat deze import er is
+
+    "time"
+
+
+
+    "github.com/google/uuid"
+
 )
+
+
 
 // --- ENUM Types ---
+
 type ProviderType string
 
+
+
 const (
-	ProviderGoogle    ProviderType = "google"
-	ProviderMicrosoft ProviderType = "microsoft"
+
+    ProviderGoogle    ProviderType = "google"
+
+    ProviderMicrosoft ProviderType = "microsoft"
+
 )
+
+
 
 type AccountStatus string
 
-const (
-	StatusActive  AccountStatus = "active"
-	StatusRevoked AccountStatus = "revoked"
-	StatusError   AccountStatus = "error"
-	StatusPaused  AccountStatus = "paused"
-)
 
-type AutomationLogStatus string // Aangepast voor consistentie
 
 const (
-	LogPending AutomationLogStatus = "pending"
-	LogSuccess AutomationLogStatus = "success"
-	LogFailure AutomationLogStatus = "failure"
-	LogSkipped AutomationLogStatus = "skipped"
+
+    StatusActive  AccountStatus = "active"
+
+    StatusRevoked AccountStatus = "revoked"
+
+    StatusError   AccountStatus = "error"
+
+    StatusPaused  AccountStatus = "paused"
+
 )
 
-// --- Tabel Structs ---
+
+
+type AutomationLogStatus string
+
+
+
+const (
+
+    LogPending AutomationLogStatus = "pending"
+
+    LogSuccess AutomationLogStatus = "success"
+
+    LogFailure AutomationLogStatus = "failure"
+
+    LogSkipped AutomationLogStatus = "skipped"
+
+)
+
+
+
+// --- Tabel Structs (met JSON tags) ---
+
+
+
 type User struct {
-	ID        uuid.UUID `db:"id"`
-	Email     string    `db:"email"`
-	Name      string    `db:"name"`
-	CreatedAt time.Time `db:"created_at"`
-	UpdatedAt time.Time `db:"updated_at"`
+
+    ID        uuid.UUID `db:"id"        json:"id"`
+
+    Email     string    `db:"email"     json:"email"`
+
+    Name      *string   `db:"name"      json:"name,omitempty"` // AANGEPAST: van 'string' naar '*string'
+
+    CreatedAt time.Time `db:"created_at" json:"created_at"`
+
+    UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+
 }
+
+
 
 type ConnectedAccount struct {
-	ID             uuid.UUID     `db:"id"`
-	UserID         uuid.UUID     `db:"user_id"`
-	Provider       ProviderType  `db:"provider"`
-	Email          string        `db:"email"`
-	ProviderUserID string        `db:"provider_user_id"`
-	AccessToken    []byte        `db:"access_token"` // Blijft []byte voor encryptie
-	RefreshToken   []byte        `db:"refresh_token"`
-	TokenExpiry    time.Time     `db:"token_expiry"`
-	Scopes         []string      `db:"scopes"` // pgx kan []string naar text[] mappen
-	Status         AccountStatus `db:"status"`
-	CreatedAt      time.Time     `db:"created_at"`
-	UpdatedAt      time.Time     `db:"updated_at"`
-	LastChecked    time.Time     `db:"last_checked"` // NIEUW
+
+    ID             uuid.UUID     `db:"id"                 json:"id"`
+
+    UserID         uuid.UUID     `db:"user_id"            json:"user_id"`
+
+    Provider       ProviderType  `db:"provider"           json:"provider"`
+
+    Email          string        `db:"email"              json:"email"`
+
+    ProviderUserID string        `db:"provider_user_id"   json:"provider_user_id"`
+
+    AccessToken    []byte        `db:"access_token"       json:"-"`
+
+    RefreshToken   []byte        `db:"refresh_token"      json:"-"`
+
+    TokenExpiry    time.Time     `db:"token_expiry"       json:"token_expiry"`
+
+    Scopes         []string      `db:"scopes"             json:"scopes"`
+
+    Status         AccountStatus `db:"status"             json:"status"`
+
+    CreatedAt      time.Time     `db:"created_at"         json:"created_at"`
+
+    UpdatedAt      time.Time     `db:"updated_at"         json:"updated_at"`
+
+    LastChecked    *time.Time    `db:"last_checked"       json:"last_checked"`
+
 }
+
+
 
 type AutomationRule struct {
-	ID                 uuid.UUID `db:"id"`
-	ConnectedAccountID uuid.UUID `db:"connected_account_id"`
-	Name               string    `db:"name"`
-	IsActive           bool      `db:"is_active"`
-	TriggerConditions  []byte    `db:"trigger_conditions"` // JSONB as []byte
-	ActionParams       []byte    `db:"action_params"`      // JSONB as []byte
-	CreatedAt          time.Time `db:"created_at"`
-	UpdatedAt          time.Time `db:"updated_at"`
+
+    ID                 uuid.UUID       `db:"id"                     json:"id"`
+
+    ConnectedAccountID uuid.UUID       `db:"connected_account_id"   json:"connected_account_id"`
+
+    Name               string          `db:"name"                   json:"name"`
+
+    IsActive           bool            `db:"is_active"              json:"is_active"`
+
+    TriggerConditions  json.RawMessage `db:"trigger_conditions"     json:"trigger_conditions"`
+
+    ActionParams       json.RawMessage `db:"action_params"          json:"action_params"`
+
+    CreatedAt          time.Time       `db:"created_at"             json:"created_at"`
+
+    UpdatedAt          time.Time       `db:"updated_at"             json:"updated_at"`
+
 }
+
+
 
 type AutomationLog struct {
-	ID                 int64               `db:"id"` // bigserial mapt naar int64
-	ConnectedAccountID uuid.UUID           `db:"connected_account_id"`
-	RuleID             uuid.UUID           `db:"rule_id"` // pgx kan 'NULL' UUID's aan
-	Timestamp          time.Time           `db:"timestamp"`
-	Status             AutomationLogStatus `db:"status"`
-	TriggerDetails     []byte              `db:"trigger_details"` // JSONB as []byte
-	ActionDetails      []byte              `db:"action_details"`  // JSONB as []byte
-	ErrorMessage       string              `db:"error_message"`   // pgx mapt 'NULL' text naar ""
+
+    ID                 int64               `db:"id"                     json:"id"`
+
+    ConnectedAccountID uuid.UUID           `db:"connected_account_id"   json:"connected_account_id"`
+
+    RuleID             uuid.UUID           `db:"rule_id"                json:"rule_id"`
+
+    Timestamp          time.Time           `db:"timestamp"              json:"timestamp"`
+
+    Status             AutomationLogStatus `db:"status"                 json:"status"`
+
+    TriggerDetails     json.RawMessage     `db:"trigger_details"        json:"trigger_details"`
+
+    ActionDetails      json.RawMessage     `db:"action_details"         json:"action_details"`
+
+    ErrorMessage       string              `db:"error_message"          json:"error_message"`
+
 }
 
-// Aangepaste structs voor JSONB met meer flexibiliteit voor shift automation
+
+
+// ... rest van het bestand (TriggerConditions, ActionParams, etc.) ...
+
+// (Deze hoeven niet aangepast te worden)
+
 type TriggerConditions struct {
-	SummaryEquals    string   `json:"summary_equals,omitempty"`
-	SummaryContains  []string `json:"summary_contains,omitempty"`
-	LocationContains []string `json:"location_contains,omitempty"`
+
+    SummaryEquals    string   `json:"summary_equals,omitempty"`
+
+    SummaryContains  []string `json:"summary_contains,omitempty"`
+
+    LocationContains []string `json:"location_contains,omitempty"`
+
 }
+
+
 
 type ActionParams struct {
-	OffsetMinutes int    `json:"offset_minutes"` // Bijv. -60 voor 1 uur voor shift
-	NewEventTitle string `json:"new_event_title"`
-	DurationMin   int    `json:"duration_min"`   // Bijv. 5 voor reminder duur
+
+    OffsetMinutes int    `json:"offset_minutes"`
+
+    NewEventTitle string `json:"new_event_title"`
+
+    DurationMin   int    `json:"duration_min"`
+
 }
 
-// --- OPTIMALISATIE: Structs voor JSONB Logging ---
+
+
 type TriggerLogDetails struct {
-	GoogleEventID  string    `json:"google_event_id"`
-	TriggerSummary string    `json:"trigger_summary"`
-	TriggerTime    time.Time `json:"trigger_time"`
+
+    GoogleEventID  string    `json:"google_event_id"`
+
+    TriggerSummary string    `json:"trigger_summary"`
+
+    TriggerTime    time.Time `json:"trigger_time"`
+
 }
+
+
 
 type ActionLogDetails struct {
-	CreatedEventID      string    `json:"created_event_id"`
-	CreatedEventSummary string    `json:"created_event_summary"`
-	ReminderTime        time.Time `json:"reminder_time"`
+
+    CreatedEventID      string    `json:"created_event_id"`
+
+    CreatedEventSummary string    `json:"created_event_summary"`
+
+    ReminderTime        time.Time `json:"reminder_time"`
+
+}
+
+
+
+type Event struct {
+
+    ID          string    `json:"id"`
+
+    Summary     string    `json:"summary"`
+
+    Description string    `json:"description"`
+
+    Start       time.Time `json:"start"`
+
+    End         time.Time `json:"end"`
+
+    CalendarId  string    `json:"calendarId"`
+
 }
 
 
@@ -1164,1091 +2047,2595 @@ type ActionLogDetails struct {
 
 
 
-## internal/store/store.go
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\logger
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\logger\logs
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\store
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\store\store.go
+
 package store
 
-import (
-	"agenda-automator-api/internal/crypto"
-	"agenda-automator-api/internal/domain"
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-)
-
-// Storer is de interface voor al onze database-interacties.
-type Storer interface {
-	CreateUser(ctx context.Context, email, name string) (domain.User, error)
-
-	UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error)
-	GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (domain.ConnectedAccount, error)
-	GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAccount, error)
-	GetAccountsForUser(ctx context.Context, userID uuid.UUID) ([]domain.ConnectedAccount, error) // NIEUWE FUNCTIE
-	UpdateAccountTokens(ctx context.Context, arg UpdateAccountTokensParams) error
-	UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error
-	UpdateAccountStatus(ctx context.Context, id uuid.UUID, status domain.AccountStatus) error
-	VerifyAccountOwnership(ctx context.Context, accountID uuid.UUID, userID uuid.UUID) error
-
-	CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error)
-	GetRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.AutomationRule, error)
-	CreateAutomationLog(ctx context.Context, arg CreateLogParams) error
-	HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error)
-
-	// --- NIEUW (Feature 1) ---
-	GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error)
-
-	// --- NIEUW (Feature 2) ---
-	VerifyRuleOwnership(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error
-	DeleteRule(ctx context.Context, ruleID uuid.UUID) error
-}
-
-// DBStore implementeert de Storer interface.
-type DBStore struct {
-	pool *pgxpool.Pool
-}
-
-// NewStore maakt een nieuwe DBStore
-func NewStore(pool *pgxpool.Pool) Storer {
-	return &DBStore{
-		pool: pool,
-	}
-}
-
-// CreateUser maakt een nieuwe gebruiker aan in de database
-func (s *DBStore) CreateUser(ctx context.Context, email, name string) (domain.User, error) {
-	query := `
-    INSERT INTO users (email, name)
-    VALUES ($1, $2)
-    ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
-    RETURNING id, email, name, created_at, updated_at;
-    `
-
-	row := s.pool.QueryRow(ctx, query, email, name)
-
-	var u domain.User
-	err := row.Scan(
-		&u.ID,
-		&u.Email,
-		&u.Name,
-		&u.CreatedAt,
-		&u.UpdatedAt,
-	)
-
-	if err != nil {
-		return domain.User{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return u, nil
-}
-
-// UpsertConnectedAccountParams (aangepast van Create)
-type UpsertConnectedAccountParams struct {
-	UserID         uuid.UUID
-	Provider       domain.ProviderType
-	Email          string
-	ProviderUserID string
-	AccessToken    string
-	RefreshToken   string
-	TokenExpiry    time.Time
-	Scopes         []string
-}
-
-// UpdateAccountTokensParams ...
-type UpdateAccountTokensParams struct {
-	AccountID       uuid.UUID
-	NewAccessToken  string
-	NewRefreshToken string
-	NewTokenExpiry  time.Time
-}
-
-// UpsertConnectedAccount versleutelt de tokens en slaat het account op (upsert)
-func (s *DBStore) UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error) {
-
-	encryptedAccessToken, err := crypto.Encrypt([]byte(arg.AccessToken))
-	if err != nil {
-		return domain.ConnectedAccount{}, fmt.Errorf("could not encrypt access token: %w", err)
-	}
-
-	var encryptedRefreshToken []byte
-	if arg.RefreshToken != "" {
-		encryptedRefreshToken, err = crypto.Encrypt([]byte(arg.RefreshToken))
-		if err != nil {
-			return domain.ConnectedAccount{}, fmt.Errorf("could not encrypt refresh token: %w", err)
-		}
-	}
-
-	query := `
-    INSERT INTO connected_accounts (
-        user_id, provider, email, provider_user_id,
-        access_token, refresh_token, token_expiry, scopes, status
-    ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, 'active'
-    )
-    ON CONFLICT (user_id, provider, provider_user_id) 
-    DO UPDATE SET 
-        access_token = EXCLUDED.access_token, 
-        refresh_token = EXCLUDED.refresh_token, 
-        token_expiry = EXCLUDED.token_expiry, 
-        scopes = EXCLUDED.scopes, 
-        status = 'active', 
-        updated_at = now()
-    RETURNING id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at, last_checked;
-    `
-
-	row := s.pool.QueryRow(ctx, query,
-		arg.UserID,
-		arg.Provider,
-		arg.Email,
-		arg.ProviderUserID,
-		encryptedAccessToken,
-		encryptedRefreshToken,
-		arg.TokenExpiry,
-		arg.Scopes,
-	)
-
-	var acc domain.ConnectedAccount
-	err = row.Scan(
-		&acc.ID,
-		&acc.UserID,
-		&acc.Provider,
-		&acc.Email,
-		&acc.ProviderUserID,
-		&acc.AccessToken,
-		&acc.RefreshToken,
-		&acc.TokenExpiry,
-		&acc.Scopes,
-		&acc.Status,
-		&acc.CreatedAt,
-		&acc.UpdatedAt,
-		&acc.LastChecked,
-	)
-
-	if err != nil {
-		return domain.ConnectedAccount{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return acc, nil
-}
-
-// GetConnectedAccountByID ...
-func (s *DBStore) GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (domain.ConnectedAccount, error) {
-	query := `
-        SELECT id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at, last_checked
-        FROM connected_accounts
-        WHERE id = $1
-    `
-
-	row := s.pool.QueryRow(ctx, query, id)
-
-	var acc domain.ConnectedAccount
-	err := row.Scan(
-		&acc.ID,
-		&acc.UserID,
-		&acc.Provider,
-		&acc.Email,
-		&acc.ProviderUserID,
-		&acc.AccessToken,
-		&acc.RefreshToken,
-		&acc.TokenExpiry,
-		&acc.Scopes,
-		&acc.Status,
-		&acc.CreatedAt,
-		&acc.UpdatedAt,
-		&acc.LastChecked,
-	)
-
-	if err != nil {
-		return domain.ConnectedAccount{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return acc, nil
-}
-
-// UpdateAccountTokens ...
-func (s *DBStore) UpdateAccountTokens(ctx context.Context, arg UpdateAccountTokensParams) error {
-	encryptedAccessToken, err := crypto.Encrypt([]byte(arg.NewAccessToken))
-	if err != nil {
-		return fmt.Errorf("could not encrypt new access token: %w", err)
-	}
-
-	var query string
-	var args []interface{}
-
-	if arg.NewRefreshToken != "" {
-		encryptedRefreshToken, err := crypto.Encrypt([]byte(arg.NewRefreshToken))
-		if err != nil {
-			return fmt.Errorf("could not encrypt new refresh token: %w", err)
-		}
-
-		query = `
-        UPDATE connected_accounts
-        SET access_token = $1, refresh_token = $2, token_expiry = $3, updated_at = now()
-        WHERE id = $4;
-        `
-		args = []interface{}{encryptedAccessToken, encryptedRefreshToken, arg.NewTokenExpiry, arg.AccountID}
-	} else {
-		query = `
-        UPDATE connected_accounts
-        SET access_token = $1, token_expiry = $2, updated_at = now()
-        WHERE id = $3;
-        `
-		args = []interface{}{encryptedAccessToken, arg.NewTokenExpiry, arg.AccountID}
-	}
-
-	cmdTag, err := s.pool.Exec(ctx, query, args...)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-
-	if cmdTag.RowsAffected() == 0 {
-		return fmt.Errorf("no account found with ID %s to update", arg.AccountID)
-	}
-
-	return nil
-}
-
-// UpdateAccountLastChecked
-func (s *DBStore) UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error {
-	query := `
-    UPDATE connected_accounts
-    SET last_checked = now(), updated_at = now()
-    WHERE id = $1;
-    `
-
-	_, err := s.pool.Exec(ctx, query, id)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-
-	return nil
-}
-
-// GetActiveAccounts haalt alle accounts op die de worker moet controleren
-func (s *DBStore) GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAccount, error) {
-	query := `
-    SELECT id, user_id, provider, email, provider_user_id,
-           access_token, refresh_token, token_expiry, scopes, status,
-           created_at, updated_at, last_checked
-    FROM connected_accounts
-    WHERE status = 'active';
-    `
-
-	rows, err := s.pool.Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("db query error: %w", err)
-	}
-	defer rows.Close()
-
-	var accounts []domain.ConnectedAccount
-	for rows.Next() {
-		var acc domain.ConnectedAccount
-		err := rows.Scan(
-			&acc.ID,
-			&acc.UserID,
-			&acc.Provider,
-			&acc.Email,
-			&acc.ProviderUserID,
-			&acc.AccessToken,
-			&acc.RefreshToken,
-			&acc.TokenExpiry,
-			&acc.Scopes,
-			&acc.Status,
-			&acc.CreatedAt,
-			&acc.UpdatedAt,
-			&acc.LastChecked,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("db row scan error: %w", err)
-		}
-		accounts = append(accounts, acc)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("db rows error: %w", err)
-	}
-
-	return accounts, nil
-}
-
-// --- NIEUWE READ FUNCTIE ---
-// GetAccountsForUser haalt alle accounts op die eigendom zijn van een specifieke gebruiker
-func (s *DBStore) GetAccountsForUser(ctx context.Context, userID uuid.UUID) ([]domain.ConnectedAccount, error) {
-	query := `
-    SELECT id, user_id, provider, email, provider_user_id,
-           access_token, refresh_token, token_expiry, scopes, status,
-           created_at, updated_at, last_checked
-    FROM connected_accounts
-    WHERE user_id = $1
-    ORDER BY created_at DESC;
-    `
-
-	rows, err := s.pool.Query(ctx, query, userID)
-	if err != nil {
-		return nil, fmt.Errorf("db query error: %w", err)
-	}
-	defer rows.Close()
-
-	var accounts []domain.ConnectedAccount
-	for rows.Next() {
-		var acc domain.ConnectedAccount
-		err := rows.Scan(
-			&acc.ID,
-			&acc.UserID,
-			&acc.Provider,
-			&acc.Email,
-			&acc.ProviderUserID,
-			&acc.AccessToken,
-			&acc.RefreshToken,
-			&acc.TokenExpiry,
-			&acc.Scopes,
-			&acc.Status,
-			&acc.CreatedAt,
-			&acc.UpdatedAt,
-			&acc.LastChecked,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("db row scan error: %w", err)
-		}
-		accounts = append(accounts, acc)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("db rows error: %w", err)
-	}
-
-	return accounts, nil
-}
-
-// --- AUTH FUNCTIE ---
-// VerifyAccountOwnership controleert of een gebruiker eigenaar is van een account
-func (s *DBStore) VerifyAccountOwnership(ctx context.Context, accountID uuid.UUID, userID uuid.UUID) error {
-	query := `
-    SELECT 1 
-    FROM connected_accounts
-    WHERE id = $1 AND user_id = $2
-    LIMIT 1;
-    `
-	var exists int
-	err := s.pool.QueryRow(ctx, query, accountID, userID).Scan(&exists)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf("forbidden: account not found or does not belong to user")
-		}
-		return fmt.Errorf("db query error: %w", err)
-	}
-
-	return nil
-}
-
-// CreateAutomationRuleParams
-type CreateAutomationRuleParams struct {
-	ConnectedAccountID uuid.UUID
-	Name               string
-	TriggerConditions  json.RawMessage // []byte
-	ActionParams       json.RawMessage // []byte
-}
-
-// CreateAutomationRule
-func (s *DBStore) CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) {
-	query := `
-    INSERT INTO automation_rules (
-        connected_account_id, name, trigger_conditions, action_params
-    ) VALUES (
-        $1, $2, $3, $4
-    )
-    RETURNING id, connected_account_id, name, is_active, trigger_conditions, action_params, created_at, updated_at;
-    `
-
-	row := s.pool.QueryRow(ctx, query,
-		arg.ConnectedAccountID,
-		arg.Name,
-		arg.TriggerConditions,
-		arg.ActionParams,
-	)
-
-	var rule domain.AutomationRule
-	err := row.Scan(
-		&rule.ID,
-		&rule.ConnectedAccountID,
-		&rule.Name,
-		&rule.IsActive,
-		&rule.TriggerConditions,
-		&rule.ActionParams,
-		&rule.CreatedAt,
-		&rule.UpdatedAt,
-	)
-
-	if err != nil {
-		return domain.AutomationRule{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return rule, nil
-}
-
-// GetRulesForAccount ...
-func (s *DBStore) GetRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.AutomationRule, error) {
-	query := `
-    SELECT id, connected_account_id, name, is_active,
-           trigger_conditions, action_params, created_at, updated_at
-    FROM automation_rules
-    WHERE connected_account_id = $1 AND is_active = true;
-    `
-
-	rows, err := s.pool.Query(ctx, query, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("db query error: %w", err)
-	}
-	defer rows.Close()
-
-	var rules []domain.AutomationRule
-	for rows.Next() {
-		var rule domain.AutomationRule
-		err := rows.Scan(
-			&rule.ID,
-			&rule.ConnectedAccountID,
-			&rule.Name,
-			&rule.IsActive,
-			&rule.TriggerConditions,
-			&rule.ActionParams,
-			&rule.CreatedAt,
-			&rule.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("db row scan error: %w", err)
-		}
-		rules = append(rules, rule)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("db rows error: %w", err)
-	}
-
-	return rules, nil
-}
-
-// --- OPTIMALISATIE 2: ERROR HANDLING ---
-func (s *DBStore) UpdateAccountStatus(ctx context.Context, id uuid.UUID, status domain.AccountStatus) error {
-	query := `
-    UPDATE connected_accounts
-    SET status = $1, updated_at = now()
-    WHERE id = $2;
-    `
-	_, err := s.pool.Exec(ctx, query, status, id)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-	return nil
-}
-
-// --- OPTIMALISATIE 1: LOGGING PARAMS ---
-type CreateLogParams struct {
-	ConnectedAccountID uuid.UUID
-	RuleID             uuid.UUID
-	Status             domain.AutomationLogStatus
-	TriggerDetails     json.RawMessage // []byte
-	ActionDetails      json.RawMessage // []byte
-	ErrorMessage       string
-}
-
-// --- OPTIMALISATIE 1: LOGGING ---
-func (s *DBStore) CreateAutomationLog(ctx context.Context, arg CreateLogParams) error {
-	query := `
-    INSERT INTO automation_logs (
-        connected_account_id, rule_id, status, trigger_details, action_details, error_message
-    ) VALUES ($1, $2, $3, $4, $5, $6);
-    `
-	_, err := s.pool.Exec(ctx, query,
-		arg.ConnectedAccountID,
-		arg.RuleID,
-		arg.Status,
-		arg.TriggerDetails,
-		arg.ActionDetails,
-		arg.ErrorMessage,
-	)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-	return nil
-}
-
-// --- OPTIMALISATIE 1: EFFICIENCY CHECK ---
-func (s *DBStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error) {
-	query := `
-    SELECT 1
-    FROM automation_logs
-    WHERE rule_id = $1
-      AND status = 'success'
-      AND trigger_details->>'google_event_id' = $2
-    LIMIT 1;
-    `
-	var exists int
-	err := s.pool.QueryRow(ctx, query, ruleID, triggerEventID).Scan(&exists)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil // Geen log gevonden, dit is geen error
-		}
-		return false, fmt.Errorf("db query error: %w", err) // Een échte error
-	}
-	
-	return true, nil // Gevonden
-}
-
-// --- NIEUWE FUNCTIE (Feature 1) ---
-// GetLogsForAccount haalt de meest recente logs op voor een account.
-func (s *DBStore) GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error) {
-	query := `
-	   SELECT id, connected_account_id, rule_id, timestamp, status,
-	          trigger_details, action_details, error_message
-	   FROM automation_logs
-	   WHERE connected_account_id = $1
-	   ORDER BY timestamp DESC
-	   LIMIT $2;
-	   `
-
-	rows, err := s.pool.Query(ctx, query, accountID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("db query error: %w", err)
-	}
-	defer rows.Close()
-
-	var logs []domain.AutomationLog
-	for rows.Next() {
-		var log domain.AutomationLog
-		err := rows.Scan(
-			&log.ID,
-			&log.ConnectedAccountID,
-			&log.RuleID,
-			&log.Timestamp,
-			&log.Status,
-			&log.TriggerDetails,
-			&log.ActionDetails,
-			&log.ErrorMessage,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("db row scan error: %w", err)
-		}
-		logs = append(logs, log)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("db rows error: %w", err)
-	}
-
-	return logs, nil
-}
-
-// --- NIEUWE FUNCTIE (Feature 2) ---
-// VerifyRuleOwnership controleert of een gebruiker de eigenaar is van de regel (via het account).
-func (s *DBStore) VerifyRuleOwnership(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error {
-	query := `
-	   SELECT 1
-	   FROM automation_rules r
-	   JOIN connected_accounts ca ON r.connected_account_id = ca.id
-	   WHERE r.id = $1 AND ca.user_id = $2
-	   LIMIT 1;
-	   `
-	var exists int
-	err := s.pool.QueryRow(ctx, query, ruleID, userID).Scan(&exists)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf("forbidden: rule not found or does not belong to user")
-		}
-		return fmt.Errorf("db query error: %w", err)
-	}
-
-	return nil
-}
-
-// --- NIEUWE FUNCTIE (Feature 2) ---
-// DeleteRule verwijdert een specifieke regel uit de database.
-func (s *DBStore) DeleteRule(ctx context.Context, ruleID uuid.UUID) error {
-	query := `
-	   DELETE FROM automation_rules
-	   WHERE id = $1;
-	   `
-
-	cmdTag, err := s.pool.Exec(ctx, query, ruleID)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-
-	if cmdTag.RowsAffected() == 0 {
-		return fmt.Errorf("no rule found with ID %s to delete", ruleID)
-	}
-
-	return nil
-}
-
-
-
-
-
-
-
-
-
-## internal/worker/worker.go
-package worker
 
 import (
-	"agenda-automator-api/internal/crypto"
-	"agenda-automator-api/internal/domain"
-	"agenda-automator-api/internal/store"
-	"context"
-	"encoding/json"
-	"errors" // NIEUW
-	"fmt"
-	"log"
-	"strings"
-	"sync" // NIEUW voor parallel
-	"time"
 
-	"golang.org/x/oauth2"
-	"google.golang.org/api/calendar/v3"
-	"google.golang.org/api/option"
+    "agenda-automator-api/internal/crypto"
+
+    "agenda-automator-api/internal/domain"
+
+    "context"
+
+    "encoding/json"
+
+    "errors"
+
+    "fmt"
+
+    "log"
+
+    "strings"
+
+    "time"
+
+
+
+    "github.com/google/uuid"
+
+    "github.com/jackc/pgx/v5"
+
+    "github.com/jackc/pgx/v5/pgxpool"
+
+    "golang.org/x/oauth2"
+
 )
 
-// NIEUW: (Optimalisatie 2) Specifieke error voor revoked tokens
+
+
+// ErrTokenRevoked wordt gegooid als de gebruiker de toegang heeft ingetrokken.
+
 var ErrTokenRevoked = fmt.Errorf("token access has been revoked by user")
 
+
+
+// Storer is de interface voor al onze database-interacties.
+
+type Storer interface {
+
+    CreateUser(ctx context.Context, email, name string) (domain.User, error)
+
+    GetUserByID(ctx context.Context, userID uuid.UUID) (domain.User, error)
+
+    DeleteUser(ctx context.Context, userID uuid.UUID) error
+
+
+
+    UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error)
+
+    GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (domain.ConnectedAccount, error)
+
+    GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAccount, error)
+
+    GetAccountsForUser(ctx context.Context, userID uuid.UUID) ([]domain.ConnectedAccount, error)
+
+    UpdateAccountTokens(ctx context.Context, arg UpdateAccountTokensParams) error
+
+    UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error
+
+    UpdateAccountStatus(ctx context.Context, id uuid.UUID, status domain.AccountStatus) error
+
+    DeleteConnectedAccount(ctx context.Context, accountID uuid.UUID) error
+
+    VerifyAccountOwnership(ctx context.Context, accountID uuid.UUID, userID uuid.UUID) error
+
+
+
+    CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error)
+
+    GetRuleByID(ctx context.Context, ruleID uuid.UUID) (domain.AutomationRule, error)
+
+    GetRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.AutomationRule, error)
+
+    UpdateRule(ctx context.Context, arg UpdateRuleParams) (domain.AutomationRule, error)
+
+    ToggleRuleStatus(ctx context.Context, ruleID uuid.UUID) (domain.AutomationRule, error)
+
+    DeleteRule(ctx context.Context, ruleID uuid.UUID) error
+
+    VerifyRuleOwnership(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error
+
+
+
+    CreateAutomationLog(ctx context.Context, arg CreateLogParams) error
+
+    HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error)
+
+    GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error)
+
+
+
+    // Gecentraliseerde Token Logica
+
+    GetValidTokenForAccount(ctx context.Context, accountID uuid.UUID) (*oauth2.Token, error)
+
+
+
+    // UpdateConnectedAccountToken update access/refresh token
+
+    UpdateConnectedAccountToken(ctx context.Context, params UpdateConnectedAccountTokenParams) error
+
+}
+
+
+
+// DBStore implementeert de Storer interface.
+
+type DBStore struct {
+
+    pool              *pgxpool.Pool
+
+    googleOAuthConfig *oauth2.Config // Nodig om tokens te verversen
+
+}
+
+
+
+// NewStore maakt een nieuwe DBStore
+
+func NewStore(pool *pgxpool.Pool, oauthCfg *oauth2.Config) Storer {
+
+    return &DBStore{
+
+        pool:              pool,
+
+        googleOAuthConfig: oauthCfg,
+
+    }
+
+}
+
+
+
+// --- USER FUNCTIES ---
+
+
+
+// CreateUser maakt een nieuwe gebruiker aan in de database
+
+func (s *DBStore) CreateUser(ctx context.Context, email, name string) (domain.User, error) {
+
+    query := `
+
+    INSERT INTO users (email, name)
+
+    VALUES ($1, $2)
+
+    ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
+
+    RETURNING id, email, name, created_at, updated_at;
+
+    `
+
+
+
+    row := s.pool.QueryRow(ctx, query, email, name)
+
+
+
+    var u domain.User
+
+    err := row.Scan(
+
+        &u.ID,
+
+        &u.Email,
+
+        &u.Name,
+
+        &u.CreatedAt,
+
+        &u.UpdatedAt,
+
+    )
+
+
+
+    if err != nil {
+
+        return domain.User{}, fmt.Errorf("db scan error: %w", err)
+
+    }
+
+
+
+    return u, nil
+
+}
+
+
+
+// GetUserByID haalt een gebruiker op basis van ID.
+
+func (s *DBStore) GetUserByID(ctx context.Context, userID uuid.UUID) (domain.User, error) {
+
+    query := `SELECT id, email, name, created_at, updated_at FROM users WHERE id = $1`
+
+    row := s.pool.QueryRow(ctx, query, userID)
+
+
+
+    var u domain.User
+
+    err := row.Scan(
+
+        &u.ID,
+
+        &u.Email,
+
+        &u.Name,
+
+        &u.CreatedAt,
+
+        &u.UpdatedAt,
+
+    )
+
+
+
+    if err != nil {
+
+        if errors.Is(err, pgx.ErrNoRows) {
+
+            return domain.User{}, fmt.Errorf("user not found")
+
+        }
+
+        return domain.User{}, fmt.Errorf("db scan error: %w", err)
+
+    }
+
+
+
+    return u, nil
+
+}
+
+
+
+// DeleteUser verwijdert een gebruiker en al zijn data (via ON DELETE CASCADE).
+
+func (s *DBStore) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+
+    query := `DELETE FROM users WHERE id = $1`
+
+    cmdTag, err := s.pool.Exec(ctx, query, userID)
+
+    if err != nil {
+
+        return fmt.Errorf("db exec error: %w", err)
+
+    }
+
+    if cmdTag.RowsAffected() == 0 {
+
+        return fmt.Errorf("no user found with ID %s to delete", userID)
+
+    }
+
+    return nil
+
+}
+
+
+
+// --- ACCOUNT FUNCTIES ---
+
+
+
+// UpsertConnectedAccountParams (aangepast van Create)
+
+type UpsertConnectedAccountParams struct {
+
+    UserID         uuid.UUID
+
+    Provider       domain.ProviderType
+
+    Email          string
+
+    ProviderUserID string
+
+    AccessToken    string
+
+    RefreshToken   string
+
+    TokenExpiry    time.Time
+
+    Scopes         []string
+
+}
+
+
+
+// UpsertConnectedAccount versleutelt de tokens en slaat het account op (upsert)
+
+func (s *DBStore) UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error) {
+
+
+
+    encryptedAccessToken, err := crypto.Encrypt([]byte(arg.AccessToken))
+
+    if err != nil {
+
+        return domain.ConnectedAccount{}, fmt.Errorf("could not encrypt access token: %w", err)
+
+    }
+
+
+
+    var encryptedRefreshToken []byte
+
+    if arg.RefreshToken != "" {
+
+        encryptedRefreshToken, err = crypto.Encrypt([]byte(arg.RefreshToken))
+
+        if err != nil {
+
+            return domain.ConnectedAccount{}, fmt.Errorf("could not encrypt refresh token: %w", err)
+
+        }
+
+    }
+
+
+
+    query := `
+
+    INSERT INTO connected_accounts (
+
+        user_id, provider, email, provider_user_id,
+
+        access_token, refresh_token, token_expiry, scopes, status
+
+    ) VALUES (
+
+        $1, $2, $3, $4, $5, $6, $7, $8, 'active'
+
+    )
+
+    ON CONFLICT (user_id, provider, provider_user_id) 
+
+    DO UPDATE SET 
+
+        access_token = EXCLUDED.access_token, 
+
+        refresh_token = EXCLUDED.refresh_token, 
+
+        token_expiry = EXCLUDED.token_expiry, 
+
+        scopes = EXCLUDED.scopes, 
+
+        status = 'active', 
+
+        updated_at = now()
+
+    RETURNING id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at, last_checked;
+
+    `
+
+
+
+    row := s.pool.QueryRow(ctx, query,
+
+        arg.UserID,
+
+        arg.Provider,
+
+        arg.Email,
+
+        arg.ProviderUserID,
+
+        encryptedAccessToken,
+
+        encryptedRefreshToken,
+
+        arg.TokenExpiry,
+
+        arg.Scopes,
+
+    )
+
+
+
+    var acc domain.ConnectedAccount
+
+    err = row.Scan(
+
+        &acc.ID,
+
+        &acc.UserID,
+
+        &acc.Provider,
+
+        &acc.Email,
+
+        &acc.ProviderUserID,
+
+        &acc.AccessToken,
+
+        &acc.RefreshToken,
+
+        &acc.TokenExpiry,
+
+        &acc.Scopes,
+
+        &acc.Status,
+
+        &acc.CreatedAt,
+
+        &acc.UpdatedAt,
+
+        &acc.LastChecked,
+
+    )
+
+
+
+    if err != nil {
+
+        return domain.ConnectedAccount{}, fmt.Errorf("db scan error: %w", err)
+
+    }
+
+
+
+    return acc, nil
+
+}
+
+
+
+// GetConnectedAccountByID ...
+
+func (s *DBStore) GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (domain.ConnectedAccount, error) {
+
+    query := `
+
+        SELECT id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at, last_checked
+
+        FROM connected_accounts
+
+        WHERE id = $1
+
+    `
+
+
+
+    row := s.pool.QueryRow(ctx, query, id)
+
+
+
+    var acc domain.ConnectedAccount
+
+    err := row.Scan(
+
+        &acc.ID,
+
+        &acc.UserID,
+
+        &acc.Provider,
+
+        &acc.Email,
+
+        &acc.ProviderUserID,
+
+        &acc.AccessToken,
+
+        &acc.RefreshToken,
+
+        &acc.TokenExpiry,
+
+        &acc.Scopes,
+
+        &acc.Status,
+
+        &acc.CreatedAt,
+
+        &acc.UpdatedAt,
+
+        &acc.LastChecked,
+
+    )
+
+
+
+    if err != nil {
+
+        if errors.Is(err, pgx.ErrNoRows) {
+
+            return domain.ConnectedAccount{}, fmt.Errorf("account not found")
+
+        }
+
+        return domain.ConnectedAccount{}, fmt.Errorf("db scan error: %w", err)
+
+    }
+
+
+
+    return acc, nil
+
+}
+
+
+
+// UpdateAccountTokensParams ...
+
+type UpdateAccountTokensParams struct {
+
+    AccountID       uuid.UUID
+
+    NewAccessToken  string
+
+    NewRefreshToken string
+
+    NewTokenExpiry  time.Time
+
+}
+
+
+
+// UpdateConnectedAccountTokenParams ...
+
+type UpdateConnectedAccountTokenParams struct {
+
+    ID           uuid.UUID
+
+    AccessToken  []byte
+
+    RefreshToken []byte
+
+    TokenExpiry  time.Time
+
+}
+
+
+
+// UpdateAccountTokens ...
+
+func (s *DBStore) UpdateAccountTokens(ctx context.Context, arg UpdateAccountTokensParams) error {
+
+    encryptedAccessToken, err := crypto.Encrypt([]byte(arg.NewAccessToken))
+
+    if err != nil {
+
+        return fmt.Errorf("could not encrypt new access token: %w", err)
+
+    }
+
+
+
+    var query string
+
+    var args []interface{}
+
+
+
+    if arg.NewRefreshToken != "" {
+
+        encryptedRefreshToken, err := crypto.Encrypt([]byte(arg.NewRefreshToken))
+
+        if err != nil {
+
+            return fmt.Errorf("could not encrypt new refresh token: %w", err)
+
+        }
+
+
+
+        query = `
+
+        UPDATE connected_accounts
+
+        SET access_token = $1, refresh_token = $2, token_expiry = $3, updated_at = now()
+
+        WHERE id = $4;
+
+        `
+
+        args = []interface{}{encryptedAccessToken, encryptedRefreshToken, arg.NewTokenExpiry, arg.AccountID}
+
+    } else {
+
+        query = `
+
+        UPDATE connected_accounts
+
+        SET access_token = $1, token_expiry = $2, updated_at = now()
+
+        WHERE id = $3;
+
+        `
+
+        args = []interface{}{encryptedAccessToken, arg.NewTokenExpiry, arg.AccountID}
+
+    }
+
+
+
+    cmdTag, err := s.pool.Exec(ctx, query, args...)
+
+    if err != nil {
+
+        return fmt.Errorf("db exec error: %w", err)
+
+    }
+
+
+
+    if cmdTag.RowsAffected() == 0 {
+
+        return fmt.Errorf("no account found with ID %s to update", arg.AccountID)
+
+    }
+
+
+
+    return nil
+
+}
+
+
+
+// UpdateAccountLastChecked
+
+func (s *DBStore) UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error {
+
+    query := `
+
+    UPDATE connected_accounts
+
+    SET last_checked = now(), updated_at = now()
+
+    WHERE id = $1;
+
+    `
+
+
+
+    _, err := s.pool.Exec(ctx, query, id)
+
+    if err != nil {
+
+        return fmt.Errorf("db exec error: %w", err)
+
+    }
+
+
+
+    return nil
+
+}
+
+
+
+// GetActiveAccounts haalt alle accounts op die de worker moet controleren
+
+func (s *DBStore) GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAccount, error) {
+
+    query := `
+
+    SELECT id, user_id, provider, email, provider_user_id,
+
+           access_token, refresh_token, token_expiry, scopes, status,
+
+           created_at, updated_at, last_checked
+
+    FROM connected_accounts
+
+    WHERE status = 'active';
+
+    `
+
+
+
+    rows, err := s.pool.Query(ctx, query)
+
+    if err != nil {
+
+        return nil, fmt.Errorf("db query error: %w", err)
+
+    }
+
+    defer rows.Close()
+
+
+
+    var accounts []domain.ConnectedAccount
+
+    for rows.Next() {
+
+        var acc domain.ConnectedAccount
+
+        err := rows.Scan(
+
+            &acc.ID,
+
+            &acc.UserID,
+
+            &acc.Provider,
+
+            &acc.Email,
+
+            &acc.ProviderUserID,
+
+            &acc.AccessToken,
+
+            &acc.RefreshToken,
+
+            &acc.TokenExpiry,
+
+            &acc.Scopes,
+
+            &acc.Status,
+
+            &acc.CreatedAt,
+
+            &acc.UpdatedAt,
+
+            &acc.LastChecked,
+
+        )
+
+        if err != nil {
+
+            return nil, fmt.Errorf("db row scan error: %w", err)
+
+        }
+
+        accounts = append(accounts, acc)
+
+    }
+
+
+
+    if err := rows.Err(); err != nil {
+
+        return nil, fmt.Errorf("db rows error: %w", err)
+
+    }
+
+
+
+    return accounts, nil
+
+}
+
+
+
+// GetAccountsForUser haalt alle accounts op die eigendom zijn van een specifieke gebruiker
+
+func (s *DBStore) GetAccountsForUser(ctx context.Context, userID uuid.UUID) ([]domain.ConnectedAccount, error) {
+
+    query := `
+
+    SELECT id, user_id, provider, email, provider_user_id,
+
+           access_token, refresh_token, token_expiry, scopes, status,
+
+           created_at, updated_at, last_checked
+
+    FROM connected_accounts
+
+    WHERE user_id = $1
+
+    ORDER BY created_at DESC;
+
+    `
+
+
+
+    rows, err := s.pool.Query(ctx, query, userID)
+
+    if err != nil {
+
+        return nil, fmt.Errorf("db query error: %w", err)
+
+    }
+
+    defer rows.Close()
+
+
+
+    var accounts []domain.ConnectedAccount
+
+    for rows.Next() {
+
+        var acc domain.ConnectedAccount
+
+        err := rows.Scan(
+
+            &acc.ID,
+
+            &acc.UserID,
+
+            &acc.Provider,
+
+            &acc.Email,
+
+            &acc.ProviderUserID,
+
+            &acc.AccessToken,
+
+            &acc.RefreshToken,
+
+            &acc.TokenExpiry,
+
+            &acc.Scopes,
+
+            &acc.Status,
+
+            &acc.CreatedAt,
+
+            &acc.UpdatedAt,
+
+            &acc.LastChecked,
+
+        )
+
+        if err != nil {
+
+            return nil, fmt.Errorf("db row scan error: %w", err)
+
+        }
+
+        accounts = append(accounts, acc)
+
+    }
+
+
+
+    if err := rows.Err(); err != nil {
+
+        return nil, fmt.Errorf("db rows error: %w", err)
+
+    }
+
+
+
+    return accounts, nil
+
+}
+
+
+
+// VerifyAccountOwnership controleert of een gebruiker eigenaar is van een account
+
+func (s *DBStore) VerifyAccountOwnership(ctx context.Context, accountID uuid.UUID, userID uuid.UUID) error {
+
+    query := `
+
+    SELECT 1 
+
+    FROM connected_accounts
+
+    WHERE id = $1 AND user_id = $2
+
+    LIMIT 1;
+
+    `
+
+    var exists int
+
+    err := s.pool.QueryRow(ctx, query, accountID, userID).Scan(&exists)
+
+
+
+    if err != nil {
+
+        if errors.Is(err, pgx.ErrNoRows) {
+
+            return fmt.Errorf("forbidden: account not found or does not belong to user")
+
+        }
+
+        return fmt.Errorf("db query error: %w", err)
+
+    }
+
+
+
+    return nil
+
+}
+
+
+
+// DeleteConnectedAccount verwijdert een specifiek account en diens data.
+
+func (s *DBStore) DeleteConnectedAccount(ctx context.Context, accountID uuid.UUID) error {
+
+    query := `DELETE FROM connected_accounts WHERE id = $1`
+
+    cmdTag, err := s.pool.Exec(ctx, query, accountID)
+
+    if err != nil {
+
+        return fmt.Errorf("db exec error: %w", err)
+
+    }
+
+    if cmdTag.RowsAffected() == 0 {
+
+        return fmt.Errorf("no account found with ID %s to delete", accountID)
+
+    }
+
+    return nil
+
+}
+
+
+
+// --- RULE FUNCTIES ---
+
+
+
+// CreateAutomationRuleParams
+
+type CreateAutomationRuleParams struct {
+
+    ConnectedAccountID uuid.UUID
+
+    Name               string
+
+    TriggerConditions  json.RawMessage // []byte
+
+    ActionParams       json.RawMessage // []byte
+
+}
+
+
+
+// CreateAutomationRule
+
+func (s *DBStore) CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) {
+
+    query := `
+
+    INSERT INTO automation_rules (
+
+        connected_account_id, name, trigger_conditions, action_params
+
+    ) VALUES (
+
+        $1, $2, $3, $4
+
+    )
+
+    RETURNING id, connected_account_id, name, is_active, trigger_conditions, action_params, created_at, updated_at;
+
+    `
+
+
+
+    row := s.pool.QueryRow(ctx, query,
+
+        arg.ConnectedAccountID,
+
+        arg.Name,
+
+        arg.TriggerConditions,
+
+        arg.ActionParams,
+
+    )
+
+
+
+    var rule domain.AutomationRule
+
+    err := row.Scan(
+
+        &rule.ID,
+
+        &rule.ConnectedAccountID,
+
+        &rule.Name,
+
+        &rule.IsActive,
+
+        &rule.TriggerConditions,
+
+        &rule.ActionParams,
+
+        &rule.CreatedAt,
+
+        &rule.UpdatedAt,
+
+    )
+
+
+
+    if err != nil {
+
+        return domain.AutomationRule{}, fmt.Errorf("db scan error: %w", err)
+
+    }
+
+
+
+    return rule, nil
+
+}
+
+
+
+// GetRuleByID ...
+
+func (s *DBStore) GetRuleByID(ctx context.Context, ruleID uuid.UUID) (domain.AutomationRule, error) {
+
+    query := `
+
+        SELECT id, connected_account_id, name, is_active,
+
+               trigger_conditions, action_params, created_at, updated_at
+
+        FROM automation_rules
+
+        WHERE id = $1
+
+        `
+
+    row := s.pool.QueryRow(ctx, query, ruleID)
+
+
+
+    var rule domain.AutomationRule
+
+    err := row.Scan(
+
+        &rule.ID,
+
+        &rule.ConnectedAccountID,
+
+        &rule.Name,
+
+        &rule.IsActive,
+
+        &rule.TriggerConditions,
+
+        &rule.ActionParams,
+
+        &rule.CreatedAt,
+
+        &rule.UpdatedAt,
+
+    )
+
+
+
+    if err != nil {
+
+        if errors.Is(err, pgx.ErrNoRows) {
+
+            return domain.AutomationRule{}, fmt.Errorf("rule not found")
+
+        }
+
+        return domain.AutomationRule{}, fmt.Errorf("db scan error: %w", err)
+
+    }
+
+
+
+    return rule, nil
+
+}
+
+
+
+// GetRulesForAccount ...
+
+func (s *DBStore) GetRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.AutomationRule, error) {
+
+    query := `
+
+    SELECT id, connected_account_id, name, is_active,
+
+           trigger_conditions, action_params, created_at, updated_at
+
+    FROM automation_rules
+
+    WHERE connected_account_id = $1
+
+    ORDER BY created_at DESC;
+
+    `
+
+
+
+    rows, err := s.pool.Query(ctx, query, accountID)
+
+    if err != nil {
+
+        return nil, fmt.Errorf("db query error: %w", err)
+
+    }
+
+    defer rows.Close()
+
+
+
+    var rules []domain.AutomationRule
+
+    for rows.Next() {
+
+        var rule domain.AutomationRule
+
+        err := rows.Scan(
+
+            &rule.ID,
+
+            &rule.ConnectedAccountID,
+
+            &rule.Name,
+
+            &rule.IsActive,
+
+            &rule.TriggerConditions,
+
+            &rule.ActionParams,
+
+            &rule.CreatedAt,
+
+            &rule.UpdatedAt,
+
+        )
+
+        if err != nil {
+
+            return nil, fmt.Errorf("db row scan error: %w", err)
+
+        }
+
+        rules = append(rules, rule)
+
+    }
+
+
+
+    if err := rows.Err(); err != nil {
+
+        return nil, fmt.Errorf("db rows error: %w", err)
+
+    }
+
+
+
+    return rules, nil
+
+}
+
+
+
+// UpdateRuleParams definieert de parameters voor het bijwerken van een regel.
+
+type UpdateRuleParams struct {
+
+    RuleID            uuid.UUID
+
+    Name              string
+
+    TriggerConditions json.RawMessage
+
+    ActionParams      json.RawMessage
+
+}
+
+
+
+// UpdateRule werkt een bestaande regel bij.
+
+func (s *DBStore) UpdateRule(ctx context.Context, arg UpdateRuleParams) (domain.AutomationRule, error) {
+
+    query := `
+
+    UPDATE automation_rules
+
+    SET name = $1, trigger_conditions = $2, action_params = $3, updated_at = now()
+
+    WHERE id = $4
+
+    RETURNING id, connected_account_id, name, is_active, trigger_conditions, action_params, created_at, updated_at;
+
+    `
+
+    row := s.pool.QueryRow(ctx, query,
+
+        arg.Name,
+
+        arg.TriggerConditions,
+
+        arg.ActionParams,
+
+        arg.RuleID,
+
+    )
+
+
+
+    var rule domain.AutomationRule
+
+    err := row.Scan(
+
+        &rule.ID,
+
+        &rule.ConnectedAccountID,
+
+        &rule.Name,
+
+        &rule.IsActive,
+
+        &rule.TriggerConditions,
+
+        &rule.ActionParams,
+
+        &rule.CreatedAt,
+
+        &rule.UpdatedAt,
+
+    )
+
+
+
+    if err != nil {
+
+        return domain.AutomationRule{}, fmt.Errorf("db scan error: %w", err)
+
+    }
+
+
+
+    return rule, nil
+
+}
+
+
+
+// ToggleRuleStatus zet de 'is_active' boolean van een regel om.
+
+func (s *DBStore) ToggleRuleStatus(ctx context.Context, ruleID uuid.UUID) (domain.AutomationRule, error) {
+
+    query := `
+
+    UPDATE automation_rules
+
+    SET is_active = NOT is_active, updated_at = now()
+
+    WHERE id = $1
+
+    RETURNING id, connected_account_id, name, is_active, trigger_conditions, action_params, created_at, updated_at;
+
+    `
+
+    row := s.pool.QueryRow(ctx, query, ruleID)
+
+
+
+    var rule domain.AutomationRule
+
+    err := row.Scan(
+
+        &rule.ID,
+
+        &rule.ConnectedAccountID,
+
+        &rule.Name,
+
+        &rule.IsActive,
+
+        &rule.TriggerConditions,
+
+        &rule.ActionParams,
+
+        &rule.CreatedAt,
+
+        &rule.UpdatedAt,
+
+    )
+
+
+
+    if err != nil {
+
+        return domain.AutomationRule{}, fmt.Errorf("db scan error: %w", err)
+
+    }
+
+
+
+    return rule, nil
+
+}
+
+
+
+// VerifyRuleOwnership controleert of een gebruiker de eigenaar is van de regel (via het account).
+
+func (s *DBStore) VerifyRuleOwnership(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error {
+
+    query := `
+
+       SELECT 1
+
+       FROM automation_rules r
+
+       JOIN connected_accounts ca ON r.connected_account_id = ca.id
+
+       WHERE r.id = $1 AND ca.user_id = $2
+
+       LIMIT 1;
+
+       `
+
+    var exists int
+
+    err := s.pool.QueryRow(ctx, query, ruleID, userID).Scan(&exists)
+
+
+
+    if err != nil {
+
+        if errors.Is(err, pgx.ErrNoRows) {
+
+            return fmt.Errorf("forbidden: rule not found or does not belong to user")
+
+        }
+
+        return fmt.Errorf("db query error: %w", err)
+
+    }
+
+
+
+    return nil
+
+}
+
+
+
+// DeleteRule verwijdert een specifieke regel uit de database.
+
+func (s *DBStore) DeleteRule(ctx context.Context, ruleID uuid.UUID) error {
+
+    query := `
+
+       DELETE FROM automation_rules
+
+       WHERE id = $1;
+
+       `
+
+
+
+    cmdTag, err := s.pool.Exec(ctx, query, ruleID)
+
+    if err != nil {
+
+        return fmt.Errorf("db exec error: %w", err)
+
+    }
+
+
+
+    if cmdTag.RowsAffected() == 0 {
+
+        return fmt.Errorf("no rule found with ID %s to delete", ruleID)
+
+    }
+
+
+
+    return nil
+
+}
+
+
+
+// --- LOG FUNCTIES ---
+
+
+
+// UpdateAccountStatus
+
+func (s *DBStore) UpdateAccountStatus(ctx context.Context, id uuid.UUID, status domain.AccountStatus) error {
+
+    query := `
+
+    UPDATE connected_accounts
+
+    SET status = $1, updated_at = now()
+
+    WHERE id = $2;
+
+    `
+
+    _, err := s.pool.Exec(ctx, query, status, id)
+
+    if err != nil {
+
+        return fmt.Errorf("db exec error: %w", err)
+
+    }
+
+    return nil
+
+}
+
+
+
+// CreateLogParams
+
+type CreateLogParams struct {
+
+    ConnectedAccountID uuid.UUID
+
+    RuleID             uuid.UUID
+
+    Status             domain.AutomationLogStatus
+
+    TriggerDetails     json.RawMessage // []byte
+
+    ActionDetails      json.RawMessage // []byte
+
+    ErrorMessage       string
+
+}
+
+
+
+// CreateAutomationLog
+
+func (s *DBStore) CreateAutomationLog(ctx context.Context, arg CreateLogParams) error {
+
+    query := `
+
+    INSERT INTO automation_logs (
+
+        connected_account_id, rule_id, status, trigger_details, action_details, error_message
+
+    ) VALUES ($1, $2, $3, $4, $5, $6);
+
+    `
+
+    _, err := s.pool.Exec(ctx, query,
+
+        arg.ConnectedAccountID,
+
+        arg.RuleID,
+
+        arg.Status,
+
+        arg.TriggerDetails,
+
+        arg.ActionDetails,
+
+        arg.ErrorMessage,
+
+    )
+
+    if err != nil {
+
+        return fmt.Errorf("db exec error: %w", err)
+
+    }
+
+    return nil
+
+}
+
+
+
+// HasLogForTrigger
+
+func (s *DBStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error) {
+
+    query := `
+
+    SELECT 1
+
+    FROM automation_logs
+
+    WHERE rule_id = $1
+
+      AND status = 'success'
+
+      AND trigger_details->>'google_event_id' = $2
+
+    LIMIT 1;
+
+    `
+
+    var exists int
+
+    err := s.pool.QueryRow(ctx, query, ruleID, triggerEventID).Scan(&exists)
+
+
+
+    if err != nil {
+
+        if errors.Is(err, pgx.ErrNoRows) {
+
+            return false, nil // Geen log gevonden, dit is geen error
+
+        }
+
+        return false, fmt.Errorf("db query error: %w", err) // Een échte error
+
+    }
+
+
+
+    return true, nil // Gevonden
+
+}
+
+
+
+// GetLogsForAccount haalt de meest recente logs op voor een account.
+
+func (s *DBStore) GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error) {
+
+    query := `
+
+       SELECT id, connected_account_id, rule_id, timestamp, status,
+
+              trigger_details, action_details, error_message
+
+       FROM automation_logs
+
+       WHERE connected_account_id = $1
+
+       ORDER BY timestamp DESC
+
+       LIMIT $2;
+
+       `
+
+
+
+    rows, err := s.pool.Query(ctx, query, accountID, limit)
+
+    if err != nil {
+
+        return nil, fmt.Errorf("db query error: %w", err)
+
+    }
+
+    defer rows.Close()
+
+
+
+    var logs []domain.AutomationLog
+
+    for rows.Next() {
+
+        var log domain.AutomationLog
+
+        err := rows.Scan(
+
+            &log.ID,
+
+            &log.ConnectedAccountID,
+
+            &log.RuleID,
+
+            &log.Timestamp,
+
+            &log.Status,
+
+            &log.TriggerDetails,
+
+            &log.ActionDetails,
+
+            &log.ErrorMessage,
+
+        )
+
+        if err != nil {
+
+            return nil, fmt.Errorf("db row scan error: %w", err)
+
+        }
+
+        logs = append(logs, log)
+
+    }
+
+
+
+    if err := rows.Err(); err != nil {
+
+        return nil, fmt.Errorf("db rows error: %w", err)
+
+    }
+
+
+
+    return logs, nil
+
+}
+
+
+
+// --- GECENTRALISEERDE TOKEN LOGICA ---
+
+
+
+// getDecryptedToken is een helper om de db struct om te zetten naar een oauth2.Token
+
+func (s *DBStore) getDecryptedToken(acc domain.ConnectedAccount) (*oauth2.Token, error) {
+
+    plaintextAccessToken, err := crypto.Decrypt(acc.AccessToken)
+
+    if err != nil {
+
+        return nil, fmt.Errorf("could not decrypt access token: %w", err)
+
+    }
+
+
+
+    var plaintextRefreshToken []byte
+
+    if len(acc.RefreshToken) > 0 {
+
+        plaintextRefreshToken, err = crypto.Decrypt(acc.RefreshToken)
+
+        if err != nil {
+
+            return nil, fmt.Errorf("could not decrypt refresh token: %w", err)
+
+        }
+
+    }
+
+
+
+    return &oauth2.Token{
+
+        AccessToken:  string(plaintextAccessToken),
+
+        RefreshToken: string(plaintextRefreshToken),
+
+        Expiry:       acc.TokenExpiry,
+
+        TokenType:    "Bearer",
+
+    }, nil
+
+}
+
+
+
+// GetValidTokenForAccount is de centrale functie die een token ophaalt,
+
+// en indien nodig ververst en opslaat.
+
+func (s *DBStore) GetValidTokenForAccount(ctx context.Context, accountID uuid.UUID) (*oauth2.Token, error) {
+
+    // 1. Haal account op uit DB
+
+    acc, err := s.GetConnectedAccountByID(ctx, accountID)
+
+    if err != nil {
+
+        return nil, fmt.Errorf("kon account niet ophalen: %w", err)
+
+    }
+
+
+
+    // 2. Decrypt het token
+
+    token, err := s.getDecryptedToken(acc)
+
+    if err != nil {
+
+        return nil, fmt.Errorf("kon token niet decrypten: %w", err)
+
+    }
+
+
+
+    // 3. Controleer of het (bijna) verlopen is
+
+    if token.Valid() {
+
+        return token, nil // Token is prima
+
+    }
+
+
+
+    // 4. Token is verlopen, ververs het
+
+    log.Printf("[Store] Token for account %s (User %s) is expired. Refreshing...", acc.ID, acc.UserID)
+
+
+
+    ts := s.googleOAuthConfig.TokenSource(ctx, token)
+
+    newToken, err := ts.Token()
+
+    if err != nil {
+
+        // Vang 'invalid_grant'
+
+        if strings.Contains(err.Error(), "invalid_grant") {
+
+            log.Printf("[Store] FATAL: Access for account %s has been revoked. Setting status to 'revoked'.", acc.ID)
+
+            if err := s.UpdateAccountStatus(ctx, acc.ID, domain.StatusRevoked); err != nil {
+
+                log.Printf("[Store] ERROR: Failed to update status for revoked account %s: %v", acc.ID, err)
+
+            }
+
+            return nil, ErrTokenRevoked // Gooi specifieke error
+
+        }
+
+        return nil, fmt.Errorf("could not refresh token: %w", err)
+
+    }
+
+
+
+    // 5. Sla het nieuwe token op
+
+    // Als we GEEN nieuwe refresh token krijgen, hergebruik dan de oude
+
+    if newToken.RefreshToken == "" {
+
+        newToken.RefreshToken = token.RefreshToken
+
+    }
+
+
+
+    err = s.UpdateAccountTokens(ctx, UpdateAccountTokensParams{
+
+        AccountID:       acc.ID,
+
+        NewAccessToken:  newToken.AccessToken,
+
+        NewRefreshToken: newToken.RefreshToken, // Zorg dat we de nieuwe refresh token opslaan
+
+        NewTokenExpiry:  newToken.Expiry,
+
+    })
+
+    if err != nil {
+
+        return nil, fmt.Errorf("kon ververst token niet opslaan: %w", err)
+
+    }
+
+
+
+    log.Printf("[Store] Token for account %s successfully refreshed and saved.", acc.ID)
+
+
+
+    // 6. Geef het nieuwe, geldige token terug
+
+    return newToken, nil
+
+}
+
+
+
+// UpdateConnectedAccountToken update access/refresh token
+
+func (s *DBStore) UpdateConnectedAccountToken(ctx context.Context, params UpdateConnectedAccountTokenParams) error {
+
+    _, err := s.pool.Exec(ctx, `
+
+        UPDATE connected_accounts
+
+        SET access_token = $1, refresh_token = $2, token_expiry = $3, updated_at = now()
+
+        WHERE id = $4
+
+    `, params.AccessToken, params.RefreshToken, params.TokenExpiry, params.ID)
+
+    return err
+
+}
+
+
+
+
+
+
+
+
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\worker
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\internal\worker\worker.go
+
+package worker
+
+
+
+import (
+
+    // "agenda-automator-api/internal/crypto" // <-- VERWIJDERD
+
+    "agenda-automator-api/internal/domain"
+
+    "agenda-automator-api/internal/store"
+
+    "context"
+
+    "encoding/json"
+
+    "errors"
+
+    "fmt"
+
+    "log"
+
+    "strings"
+
+    "sync"
+
+    "time"
+
+
+
+    "golang.org/x/oauth2"
+
+    "google.golang.org/api/calendar/v3"
+
+    "google.golang.org/api/option"
+
+)
+
+
+
+// VERWIJDERD:
+
+// var ErrTokenRevoked = fmt.Errorf("token access has been revoked by user")
+
+
+
 // Worker is de struct voor onze achtergrond-processor
+
 type Worker struct {
-	store             store.Storer
-	googleOAuthConfig *oauth2.Config
+
+    store store.Storer
+
+    // googleOAuthConfig *oauth2.Config // <-- VERWIJDERD (zit nu in store)
+
 }
 
-// NewWorker ...
-func NewWorker(s store.Storer, oauthCfg *oauth2.Config) (*Worker, error) {
-	if oauthCfg == nil {
-		return nil, fmt.Errorf("oauth config mag niet nil zijn")
-	}
 
-	return &Worker{
-		store:             s,
-		googleOAuthConfig: oauthCfg,
-	}, nil
+
+// NewWorker (AANGEPAST)
+
+func NewWorker(s store.Storer) (*Worker, error) {
+
+    return &Worker{
+
+        store: s,
+
+    }, nil
+
 }
+
+
 
 // Start lanceert de worker in een aparte goroutine
-func (w *Worker) Start() {
-	log.Println("Starting worker...")
 
-	go w.run()
+func (w *Worker) Start() {
+
+    log.Println("Starting worker...")
+
+
+
+    go w.run()
+
 }
+
+
 
 // run is de hoofdloop die periodiek de accounts controleert (real-time monitoring)
+
 func (w *Worker) run() {
-	// Verhoogd interval om API-limieten te respecteren
-	ticker := time.NewTicker(2 * time.Minute)
-	defer ticker.Stop()
 
-	// Draai één keer direct bij het opstarten
-	w.doWork()
+    // Verhoogd interval om API-limieten te respecteren
 
-	for {
-		<-ticker.C
-		w.doWork()
-	}
+    ticker := time.NewTicker(2 * time.Minute)
+
+    defer ticker.Stop()
+
+
+
+    // Draai één keer direct bij het opstarten
+
+    w.doWork()
+
+
+
+    for {
+
+        <-ticker.C
+
+        w.doWork()
+
+    }
+
 }
+
+
 
 // doWork is de daadwerkelijke werklading
+
 func (w *Worker) doWork() {
-	log.Println("[Worker] Running work cycle...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 110*time.Second) // Iets korter dan ticker
-	defer cancel()
+    log.Println("[Worker] Running work cycle...")
 
-	err := w.checkAccounts(ctx)
-	if err != nil {
-		log.Printf("[Worker] ERROR checking accounts: %v", err)
-	}
+
+
+    ctx, cancel := context.WithTimeout(context.Background(), 110*time.Second) // Iets korter dan ticker
+
+    defer cancel()
+
+
+
+    err := w.checkAccounts(ctx)
+
+    if err != nil {
+
+        log.Printf("[Worker] ERROR checking accounts: %v", err)
+
+    }
+
 }
+
+
 
 // checkAccounts haalt alle accounts op, beheert tokens, en start de verwerking (parallel)
+
 func (w *Worker) checkAccounts(ctx context.Context) error {
-	accounts, err := w.store.GetActiveAccounts(ctx)
-	if err != nil {
-		return fmt.Errorf("could not get active accounts: %w", err)
-	}
 
-	log.Printf("[Worker] Found %d active accounts to check.", len(accounts))
+    accounts, err := w.store.GetActiveAccounts(ctx)
 
-	var wg sync.WaitGroup
-	for _, acc := range accounts {
-		wg.Add(1)
-		go func(acc domain.ConnectedAccount) {
-			defer wg.Done()
-			w.processAccount(ctx, acc)
-		}(acc)
-	}
-	wg.Wait()
+    if err != nil {
 
-	return nil
+        return fmt.Errorf("could not get active accounts: %w", err)
+
+    }
+
+
+
+    log.Printf("[Worker] Found %d active accounts to check.", len(accounts))
+
+
+
+    var wg sync.WaitGroup
+
+    for _, acc := range accounts {
+
+        wg.Add(1)
+
+        go func(acc domain.ConnectedAccount) {
+
+            defer wg.Done()
+
+            w.processAccount(ctx, acc)
+
+        }(acc)
+
+    }
+
+    wg.Wait()
+
+
+
+    return nil
+
 }
 
-// processAccount (AANGEPAST met Optimalisatie 2)
+
+
+// processAccount (ZWAAR VEREENVOUDIGD)
+
 func (w *Worker) processAccount(ctx context.Context, acc domain.ConnectedAccount) {
-	// Maak een 'token' object van de data in de DB
-	token, err := w.getTokenForAccount(acc)
-	if err != nil {
-		log.Printf("[Worker] ERROR: Kon token niet voorbereiden voor account %s: %v", acc.ID, err)
-		return
-	}
 
-	// Controleer of het token (bijna) verlopen is
-	if !token.Valid() {
-		log.Printf("[Worker] Token for account %s (User %s) is expired. Refreshing...", acc.ID, acc.UserID)
+    // 1. Haal een gegarandeerd geldig token op.
 
-		newToken, err := w.refreshAccountToken(ctx, token)
-		if err != nil {
-			// --- OPTIMALISATIE 2: ERROR HANDLING ---
-			if errors.Is(err, ErrTokenRevoked) {
-				log.Printf("[Worker] FATAL: Access for account %s has been revoked. Setting status to 'revoked'.", acc.ID)
-				// Zet account op 'revoked' in DB zodat we het niet opnieuw proberen
-				if err := w.store.UpdateAccountStatus(ctx, acc.ID, domain.StatusRevoked); err != nil {
-					log.Printf("[Worker] ERROR: Failed to update status for revoked account %s: %v", acc.ID, err)
-				}
-			} else {
-				// Andere, tijdelijke refresh error
-				log.Printf("[Worker] ERROR refreshing account %s: %v", acc.ID, err)
-			}
-			return // Stop verwerking voor dit account
-			// --- EINDE OPTIMALISATIE 2 ---
-		}
+    // De store regelt de decryptie, check, refresh, en update.
 
-		err = w.store.UpdateAccountTokens(ctx, store.UpdateAccountTokensParams{
-			AccountID:       acc.ID,
-			NewAccessToken:  newToken.AccessToken,
-			NewRefreshToken: newToken.RefreshToken, // Zorg dat we de nieuwe refresh token opslaan
-			NewTokenExpiry:  newToken.Expiry,
-		})
-		if err != nil {
-			log.Printf("[Worker] ERROR updating refreshed token for account %s: %v", acc.ID, err)
-			return
-		}
+    token, err := w.store.GetValidTokenForAccount(ctx, acc.ID)
 
-		token = newToken
-	}
+    if err != nil {
 
-	// Process calendar
-	log.Printf("[Worker] Token for account %s is valid. Processing calendar...", acc.ID)
-	if err := w.processCalendarEvents(ctx, acc, token); err != nil {
-		log.Printf("[Worker] ERROR processing calendar for account %s: %v", acc.ID, err)
-	}
+        // De store heeft de 'revoked' status al ingesteld,
 
-	// Update last_checked
-	if err := w.store.UpdateAccountLastChecked(ctx, acc.ID); err != nil {
-		log.Printf("[Worker] ERROR updating last_checked for account %s: %v", acc.ID, err)
-	}
+        // we hoeven hier alleen nog maar te loggen en stoppen.
+
+        if errors.Is(err, store.ErrTokenRevoked) {
+
+            log.Printf("[Worker] Account %s is revoked. Stopping processing.", acc.ID)
+
+        } else {
+
+            log.Printf("[Worker] ERROR: Kon geen geldig token krijgen voor account %s: %v", acc.ID, err)
+
+        }
+
+        return // Stop verwerking voor dit account
+
+    }
+
+
+
+    // 2. Process calendar
+
+    log.Printf("[Worker] Token for account %s is valid. Processing calendar...", acc.ID)
+
+    if err := w.processCalendarEvents(ctx, acc, token); err != nil {
+
+        log.Printf("[Worker] ERROR processing calendar for account %s: %v", acc.ID, err)
+
+    }
+
+
+
+    // 3. Update last_checked
+
+    if err := w.store.UpdateAccountLastChecked(ctx, acc.ID); err != nil {
+
+        log.Printf("[Worker] ERROR updating last_checked for account %s: %v", acc.ID, err)
+
+    }
+
 }
 
-// getTokenForAccount haalt de versleutelde tokens op en maakt een *oauth2.Token (decrypt both)
-func (w *Worker) getTokenForAccount(acc domain.ConnectedAccount) (*oauth2.Token, error) {
-	plaintextAccessToken, err := crypto.Decrypt(acc.AccessToken)
-	if err != nil {
-		return nil, fmt.Errorf("could not decrypt access token: %w", err)
-	}
 
-	var plaintextRefreshToken []byte
-	if len(acc.RefreshToken) > 0 {
-		plaintextRefreshToken, err = crypto.Decrypt(acc.RefreshToken)
-		if err != nil {
-			return nil, fmt.Errorf("could not decrypt refresh token: %w", err)
-		}
-	}
 
-	return &oauth2.Token{
-		AccessToken:  string(plaintextAccessToken),
-		RefreshToken: string(plaintextRefreshToken),
-		Expiry:       acc.TokenExpiry,
-		TokenType:    "Bearer",
-	}, nil
-}
+// VERWIJDERD: getTokenForAccount
 
-// refreshAccountToken (AANGEPAST met Optimalisatie 2)
-func (w *Worker) refreshAccountToken(ctx context.Context, expiredToken *oauth2.Token) (*oauth2.Token, error) {
-	ts := w.googleOAuthConfig.TokenSource(ctx, expiredToken)
+// VERWIJDERD: refreshAccountToken
 
-	newToken, err := ts.Token()
-	if err != nil {
-		// --- OPTIMALISATIE 2: Vang 'invalid_grant' ---
-		// Dit gebeurt als de gebruiker de toegang intrekt
-		if strings.Contains(err.Error(), "invalid_grant") {
-			return nil, ErrTokenRevoked
-		}
-		// --- EINDE OPTIMALISATIE 2 ---
-		return nil, fmt.Errorf("could not refresh token: %w", err)
-	}
 
-	// Als we GEEN nieuwe refresh token krijgen, hergebruik dan de oude
-	if newToken.RefreshToken == "" {
-		newToken.RefreshToken = expiredToken.RefreshToken
-	}
 
-	return newToken, nil
-}
+// eventExists (Bestaande code)
 
-// eventExists controleert of een event met dezelfde titel al bestaat in de tijdsslot
 func eventExists(srv *calendar.Service, start, end time.Time, title string) bool {
-	// Zoek in een iets ruimer venster om afrondingsfouten te vangen
-	timeMin := start.Add(-1 * time.Minute).Format(time.RFC3339)
-	timeMax := end.Add(1 * time.Minute).Format(time.RFC3339)
 
-	events, err := srv.Events.List("primary").
-		TimeMin(timeMin).
-		TimeMax(timeMax).
-		SingleEvents(true).
-		Do()
+    // Zoek in een iets ruimer venster om afrondingsfouten te vangen
 
-	if err != nil {
-		log.Printf("[Worker] ERROR checking for existing event: %v", err)
-		// Veilige aanname: ga ervan uit dat het niet bestaat
-		return false
-	}
+    timeMin := start.Add(-1 * time.Minute).Format(time.RFC3339)
 
-	for _, item := range events.Items {
-		// Controleer op exacte titel-match
-		if item.Summary == title {
-			return true
-		}
-	}
+    timeMax := end.Add(1 * time.Minute).Format(time.RFC3339)
 
-	return false
+
+
+    events, err := srv.Events.List("primary").
+
+        TimeMin(timeMin).
+
+        TimeMax(timeMax).
+
+        SingleEvents(true).
+
+        Do()
+
+
+
+    if err != nil {
+
+        log.Printf("[Worker] ERROR checking for existing event: %v", err)
+
+        // Veilige aanname: ga ervan uit dat het niet bestaat
+
+        return false
+
+    }
+
+
+
+    for _, item := range events.Items {
+
+        // Controleer op exacte titel-match
+
+        if item.Summary == title {
+
+            return true
+
+        }
+
+    }
+
+
+
+    return false
+
 }
 
-// processCalendarEvents (AANGEPAST met Optimalisatie 1: Logging)
+
+
+// processCalendarEvents (Bestaande code)
+
 func (w *Worker) processCalendarEvents(ctx context.Context, acc domain.ConnectedAccount, token *oauth2.Token) error {
 
-	client := w.googleOAuthConfig.Client(ctx, token)
-
-	srv, err := calendar.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		return fmt.Errorf("could not create calendar service: %w", err)
-	}
-
-	// Aangepast: Check 3 maanden vooruit.
-	tMin := time.Now().Format(time.RFC3339)
-	tMax := time.Now().AddDate(0, 3, 0).Format(time.RFC3339) // 3 maanden vooruit
-
-	log.Printf("[Worker] Fetching calendar events for %s between %s and %s", acc.Email, tMin, tMax)
-
-	events, err := srv.Events.List("primary").
-		TimeMin(tMin).
-		TimeMax(tMax).
-		SingleEvents(true).
-		OrderBy("startTime").
-		Do()
-	if err != nil {
-		return fmt.Errorf("could not fetch calendar events: %w", err)
-	}
-
-	rules, err := w.store.GetRulesForAccount(ctx, acc.ID)
-	if err != nil {
-		return fmt.Errorf("could not fetch automation rules: %w", err)
-	}
-
-	if len(events.Items) == 0 || len(rules) == 0 {
-		log.Printf("[Worker] No upcoming events or no rules found for %s. Skipping.", acc.Email)
-		return nil
-	}
-
-	log.Printf("[Worker] Checking %d events against %d rules for %s...", len(events.Items), len(rules), acc.Email)
-
-	for _, event := range events.Items {
-		
-		// Voorkom dat we reageren op onze eigen aangemaakte events
-		if strings.HasPrefix(event.Description, "Automatische reminder voor:") {
-			continue
-		}
-
-		for _, rule := range rules {
-			var trigger domain.TriggerConditions
-			if err := json.Unmarshal(rule.TriggerConditions, &trigger); err != nil {
-				log.Printf("[Worker] ERROR unmarshaling trigger for rule %s: %v", rule.ID, err)
-				continue
-			}
-
-			// --- 1. CHECK TRIGGERS ---
-			summaryMatch := false
-			if trigger.SummaryEquals != "" && event.Summary == trigger.SummaryEquals {
-				summaryMatch = true
-			}
-			if !summaryMatch && len(trigger.SummaryContains) > 0 {
-				for _, contain := range trigger.SummaryContains {
-					if strings.Contains(event.Summary, contain) {
-						summaryMatch = true
-						break
-					}
-				}
-			}
-			if !summaryMatch {
-				continue
-			}
-
-			locationMatch := false
-			if len(trigger.LocationContains) == 0 {
-				locationMatch = true
-			} else {
-				eventLocationLower := strings.ToLower(event.Location)
-				for _, loc := range trigger.LocationContains {
-					if strings.Contains(eventLocationLower, strings.ToLower(loc)) {
-						locationMatch = true
-						break
-					}
-				}
-			}
-			if !locationMatch {
-				continue
-			}
-
-			// --- 1.5. CHECK LOGS (OPTIMALISATIE 1) ---
-			// Sla de rest over als we deze trigger event al succesvol hebben verwerkt.
-			// Dit voorkomt dubbel werk en onnodige eventExists API calls.
-			hasLogged, err := w.store.HasLogForTrigger(ctx, rule.ID, event.Id)
-			if err != nil {
-				log.Printf("[Worker] ERROR checking logs for event %s / rule %s: %v", event.Id, rule.ID, err)
-				// Ga door (veilige aanname), de eventExists check vangt het wel
-			}
-			if hasLogged {
-				// log.Printf("[Worker] SKIP: Trigger event %s already processed by rule %s.", event.Id, rule.ID)
-				continue // Ga naar de volgende regel
-			}
-			// --- EINDE OPTIMALISATIE 1.5 ---
 
 
-			// --- 2. VOER ACTIE UIT ---
-			log.Printf("[Worker] MATCH: Event '%s' (ID: %s) matches rule '%s'.", event.Summary, event.Id, rule.Name)
+    // De OAuth client is nu niet meer nodig in de worker,
 
-			var action domain.ActionParams
-			if err := json.Unmarshal(rule.ActionParams, &action); err != nil {
-				log.Printf("[Worker] ERROR unmarshaling action for rule %s: %v", rule.ID, err)
-				continue
-			}
+    // maar wel om de calendar service te maken.
 
-			if action.NewEventTitle == "" {
-				log.Printf("[Worker] ERROR: Rule %s heeft geen 'new_event_title'.", rule.ID)
-				continue
-			}
+    // We halen hem op uit de store config.
 
-			startTime, err := time.Parse(time.RFC3339, event.Start.DateTime)
-			if err != nil {
-				log.Printf("[Worker] ERROR parsing start time: %v", err)
-				continue
-			}
+    client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
 
-			offset := action.OffsetMinutes
-			if offset == 0 { offset = -60 }
-			reminderTime := startTime.Add(time.Duration(offset) * time.Minute)
 
-			durMin := action.DurationMin
-			if durMin == 0 { durMin = 5 }
-			endTime := reminderTime.Add(time.Duration(durMin) * time.Minute)
 
-			title := action.NewEventTitle
+    srv, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 
-			// --- 3. CONTROLEER OP DUPLICATEN (SECUNDAIRE CHECK) ---
-			if eventExists(srv, reminderTime, endTime, title) {
-				log.Printf("[Worker] SKIP: Reminder event '%s' at %s already exists.", title, reminderTime)
+    if err != nil {
 
-				// --- 3.1. LOG DIT VOOR DE VOLGENDE KEER (OPTIMALISATIE 1) ---
-				// We vonden geen log (stap 1.5), maar het event bestaat wel (stap 3).
-				// We loggen het nu alsnog om toekomstige API-checks te voorkomen.
-				triggerDetailsJSON, _ := json.Marshal(domain.TriggerLogDetails{
-					GoogleEventID:  event.Id,
-					TriggerSummary: event.Summary,
-					TriggerTime:    startTime,
-				})
-				actionDetailsJSON, _ := json.Marshal(domain.ActionLogDetails{
-					CreatedEventID:      "unknown-pre-existing",
-					CreatedEventSummary: title,
-					ReminderTime:        reminderTime,
-				})
-				logParams := store.CreateLogParams{
-					ConnectedAccountID: acc.ID,
-					RuleID:             rule.ID,
-					Status:             domain.LogSkipped, // We skippen, want het bestond al
-					TriggerDetails:     triggerDetailsJSON,
-					ActionDetails:      actionDetailsJSON,
-				}
-				if err := w.store.CreateAutomationLog(ctx, logParams); err != nil {
-					log.Printf("[Worker] ERROR saving skip log for rule %s: %v", rule.ID, err)
-				}
-				continue
-			}
+        return fmt.Errorf("could not create calendar service: %w", err)
 
-			// --- 4. MAAK EVENT AAN ---
-			newEvent := &calendar.Event{
-				Summary: title,
-				Start: &calendar.EventDateTime{
-					DateTime: reminderTime.Format(time.RFC3339),
-					TimeZone: event.Start.TimeZone,
-				},
-				End: &calendar.EventDateTime{
-					DateTime: endTime.Format(time.RFC3339),
-					TimeZone: event.End.TimeZone,
-				},
-				Description: fmt.Sprintf("Automatische reminder voor: %s\nGemaakt door regel: %s", event.Summary, rule.Name),
-			}
+    }
 
-			createdEvent, err := srv.Events.Insert("primary", newEvent).Do()
-			if err != nil {
-				log.Printf("[Worker] ERROR creating reminder event: %v", err)
 
-				// --- 4.1 LOG FAILURE (OPTIMALISATIE 1) ---
-				triggerDetailsJSON, _ := json.Marshal(domain.TriggerLogDetails{
-					GoogleEventID:  event.Id,
-					TriggerSummary: event.Summary,
-					TriggerTime:    startTime,
-				})
-				logParams := store.CreateLogParams{
-					ConnectedAccountID: acc.ID,
-					RuleID:             rule.ID,
-					Status:             domain.LogFailure,
-					TriggerDetails:     triggerDetailsJSON,
-					ErrorMessage:       err.Error(),
-				}
-				if err := w.store.CreateAutomationLog(ctx, logParams); err != nil {
-					log.Printf("[Worker] ERROR saving failure log for rule %s: %v", rule.ID, err)
-				}
-				continue
-			}
 
-			// --- 5. LOG SUCCESS (OPTIMALISATIE 1) ---
-			triggerDetailsJSON, _ := json.Marshal(domain.TriggerLogDetails{
-				GoogleEventID:  event.Id,
-				TriggerSummary: event.Summary,
-				TriggerTime:    startTime, 
-			})
-			actionDetailsJSON, _ := json.Marshal(domain.ActionLogDetails{
-				CreatedEventID:      createdEvent.Id,
-				CreatedEventSummary: createdEvent.Summary,
-				ReminderTime:        reminderTime,
-			})
+    // Ongelimiteerd: Haal alle events op
 
-			logParams := store.CreateLogParams{
-				ConnectedAccountID: acc.ID,
-				RuleID:             rule.ID,
-				Status:             domain.LogSuccess,
-				TriggerDetails:     triggerDetailsJSON,
-				ActionDetails:      actionDetailsJSON,
-			}
-			if err := w.store.CreateAutomationLog(ctx, logParams); err != nil {
-				log.Printf("[Worker] ERROR saving success log for rule %s: %v", rule.ID, err)
-			}
+    tMin := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339)
 
-			log.Printf("[Worker] SUCCESS: Created reminder '%s' (ID: %s) for event '%s' (ID: %s)", createdEvent.Summary, createdEvent.Id, event.Summary, event.Id)
-		}
-	}
+    tMax := time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339)
 
-	return nil
+
+
+    log.Printf("[Worker] Fetching all calendar events for %s (unlimited)", acc.Email)
+
+
+
+    events, err := srv.Events.List("primary").
+
+        TimeMin(tMin).
+
+        TimeMax(tMax).
+
+        SingleEvents(true).
+
+        OrderBy("startTime").
+
+        MaxResults(2500).
+
+        Do()
+
+    if err != nil {
+
+        return fmt.Errorf("could not fetch calendar events: %w", err)
+
+    }
+
+
+
+    rules, err := w.store.GetRulesForAccount(ctx, acc.ID)
+
+    if err != nil {
+
+        return fmt.Errorf("could not fetch automation rules: %w", err)
+
+    }
+
+
+
+    if len(events.Items) == 0 || len(rules) == 0 {
+
+        log.Printf("[Worker] No upcoming events or no rules found for %s. Skipping.", acc.Email)
+
+        return nil
+
+    }
+
+
+
+    log.Printf("[Worker] Checking %d events against %d rules for %s...", len(events.Items), len(rules), acc.Email)
+
+
+
+    for _, event := range events.Items {
+
+
+
+        // Voorkom dat we reageren op onze eigen aangemaakte events
+
+        if strings.HasPrefix(event.Description, "Automatische reminder voor:") {
+
+            continue
+
+        }
+
+
+
+        // (Aangepast: filter op actieve regels gebeurt nu in de DB query)
+
+        for _, rule := range rules {
+
+            // (Nieuwe check: de query haalt nu *alle* regels op, we moeten inactieve skippen)
+
+            if !rule.IsActive {
+
+                continue
+
+            }
+
+
+
+            var trigger domain.TriggerConditions
+
+            if err := json.Unmarshal(rule.TriggerConditions, &trigger); err != nil {
+
+                log.Printf("[Worker] ERROR unmarshaling trigger for rule %s: %v", rule.ID, err)
+
+                continue
+
+            }
+
+
+
+            // --- 1. CHECK TRIGGERS ---
+
+            summaryMatch := false
+
+            if trigger.SummaryEquals != "" && event.Summary == trigger.SummaryEquals {
+
+                summaryMatch = true
+
+            }
+
+            if !summaryMatch && len(trigger.SummaryContains) > 0 {
+
+                for _, contain := range trigger.SummaryContains {
+
+                    if strings.Contains(event.Summary, contain) {
+
+                        summaryMatch = true
+
+                        break
+
+                    }
+
+                }
+
+            }
+
+            if !summaryMatch {
+
+                continue
+
+            }
+
+
+
+            locationMatch := false
+
+            if len(trigger.LocationContains) == 0 {
+
+                locationMatch = true
+
+            } else {
+
+                eventLocationLower := strings.ToLower(event.Location)
+
+                for _, loc := range trigger.LocationContains {
+
+                    if strings.Contains(eventLocationLower, strings.ToLower(loc)) {
+
+                        locationMatch = true
+
+                        break
+
+                    }
+
+                }
+
+            }
+
+            if !locationMatch {
+
+                continue
+
+            }
+
+
+
+            // --- 1.5. CHECK LOGS (OPTIMALISATIE 1) ---
+
+            hasLogged, err := w.store.HasLogForTrigger(ctx, rule.ID, event.Id)
+
+            if err != nil {
+
+                log.Printf("[Worker] ERROR checking logs for event %s / rule %s: %v", event.Id, rule.ID, err)
+
+            }
+
+            if hasLogged {
+
+                continue
+
+            }
+
+            // --- EINDE OPTIMALISATIE 1.5 ---
+
+
+
+            // --- 2. VOER ACTIE UIT ---
+
+            log.Printf("[Worker] MATCH: Event '%s' (ID: %s) matches rule '%s'.", event.Summary, event.Id, rule.Name)
+
+
+
+            var action domain.ActionParams
+
+            if err := json.Unmarshal(rule.ActionParams, &action); err != nil {
+
+                log.Printf("[Worker] ERROR unmarshaling action for rule %s: %v", rule.ID, err)
+
+                continue
+
+            }
+
+
+
+            if action.NewEventTitle == "" {
+
+                log.Printf("[Worker] ERROR: Rule %s heeft geen 'new_event_title'.", rule.ID)
+
+                continue
+
+            }
+
+
+
+            startTime, err := time.Parse(time.RFC3339, event.Start.DateTime)
+
+            if err != nil {
+
+                log.Printf("[Worker] ERROR parsing start time: %v", err)
+
+                continue
+
+            }
+
+
+
+            offset := action.OffsetMinutes
+
+            if offset == 0 {
+
+                offset = -60
+
+            }
+
+            reminderTime := startTime.Add(time.Duration(offset) * time.Minute)
+
+
+
+            durMin := action.DurationMin
+
+            if durMin == 0 {
+
+                durMin = 5
+
+            }
+
+            endTime := reminderTime.Add(time.Duration(durMin) * time.Minute)
+
+
+
+            title := action.NewEventTitle
+
+
+
+            // --- 3. CONTROLEER OP DUPLICATEN (SECUNDAIRE CHECK) ---
+
+            if eventExists(srv, reminderTime, endTime, title) {
+
+                log.Printf("[Worker] SKIP: Reminder event '%s' at %s already exists.", title, reminderTime)
+
+
+
+                // --- 3.1. LOG DIT VOOR DE VOLGENDE KEER (OPTIMALISATIE 1) ---
+
+                triggerDetailsJSON, _ := json.Marshal(domain.TriggerLogDetails{
+
+                    GoogleEventID:  event.Id,
+
+                    TriggerSummary: event.Summary,
+
+                    TriggerTime:    startTime,
+
+                })
+
+                actionDetailsJSON, _ := json.Marshal(domain.ActionLogDetails{
+
+                    CreatedEventID:      "unknown-pre-existing",
+
+                    CreatedEventSummary: title,
+
+                    ReminderTime:        reminderTime,
+
+                })
+
+                logParams := store.CreateLogParams{
+
+                    ConnectedAccountID: acc.ID,
+
+                    RuleID:             rule.ID,
+
+                    Status:             domain.LogSkipped,
+
+                    TriggerDetails:     triggerDetailsJSON,
+
+                    ActionDetails:      actionDetailsJSON,
+
+                }
+
+                if err := w.store.CreateAutomationLog(ctx, logParams); err != nil {
+
+                    log.Printf("[Worker] ERROR saving skip log for rule %s: %v", rule.ID, err)
+
+                }
+
+                continue
+
+            }
+
+
+
+            // --- 4. MAAK EVENT AAN ---
+
+            newEvent := &calendar.Event{
+
+                Summary: title,
+
+                Start: &calendar.EventDateTime{
+
+                    DateTime: reminderTime.Format(time.RFC3339),
+
+                    TimeZone: event.Start.TimeZone,
+
+                },
+
+                End: &calendar.EventDateTime{
+
+                    DateTime: endTime.Format(time.RFC3339),
+
+                    TimeZone: event.End.TimeZone,
+
+                },
+
+                Description: fmt.Sprintf("Automatische reminder voor: %s\nGemaakt door regel: %s", event.Summary, rule.Name),
+
+            }
+
+
+
+            createdEvent, err := srv.Events.Insert("primary", newEvent).Do()
+
+            if err != nil {
+
+                log.Printf("[Worker] ERROR creating reminder event: %v", err)
+
+
+
+                // --- 4.1 LOG FAILURE (OPTIMALISATIE 1) ---
+
+                triggerDetailsJSON, _ := json.Marshal(domain.TriggerLogDetails{
+
+                    GoogleEventID:  event.Id,
+
+                    TriggerSummary: event.Summary,
+
+                    TriggerTime:    startTime,
+
+                })
+
+                logParams := store.CreateLogParams{
+
+                    ConnectedAccountID: acc.ID,
+
+                    RuleID:             rule.ID,
+
+                    Status:             domain.LogFailure,
+
+                    TriggerDetails:     triggerDetailsJSON,
+
+                    ErrorMessage:       err.Error(),
+
+                }
+
+                if err := w.store.CreateAutomationLog(ctx, logParams); err != nil {
+
+                    log.Printf("[Worker] ERROR saving failure log for rule %s: %v", rule.ID, err)
+
+                }
+
+                continue
+
+            }
+
+
+
+            // --- 5. LOG SUCCESS (OPTIMALISATIE 1) ---
+
+            triggerDetailsJSON, _ := json.Marshal(domain.TriggerLogDetails{
+
+                GoogleEventID:  event.Id,
+
+                TriggerSummary: event.Summary,
+
+                TriggerTime:    startTime,
+
+            })
+
+            actionDetailsJSON, _ := json.Marshal(domain.ActionLogDetails{
+
+                CreatedEventID:      createdEvent.Id,
+
+                CreatedEventSummary: createdEvent.Summary,
+
+                ReminderTime:        reminderTime,
+
+            })
+
+
+
+            logParams := store.CreateLogParams{
+
+                ConnectedAccountID: acc.ID,
+
+                RuleID:             rule.ID,
+
+                Status:             domain.LogSuccess,
+
+                TriggerDetails:     triggerDetailsJSON,
+
+                ActionDetails:      actionDetailsJSON,
+
+            }
+
+            if err := w.store.CreateAutomationLog(ctx, logParams); err != nil {
+
+                log.Printf("[Worker] ERROR saving success log for rule %s: %v", rule.ID, err)
+
+            }
+
+
+
+            log.Printf("[Worker] SUCCESS: Created reminder '%s' (ID: %s) for event '%s' (ID: %s)", createdEvent.Summary, createdEvent.Id, event.Summary, event.Id)
+
+        }
+
+    }
+
+
+
+    return nil
+
 }
 
 
@@ -2258,52 +4645,101 @@ func (w *Worker) processCalendarEvents(ctx context.Context, acc domain.Connected
 
 
 
-C:\Users\JJALa\Desktop\Github\Agenda tool Jeffrey\Jeffrey-s-Agenda-Tool\.env
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\logs
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\.env
+
 #---------------------------------------------------
+
 # 1. APPLICATIE CONFIGURATIE
+
 #---------------------------------------------------
+
 APP_ENV=development
+
+
 
 API_PORT=8080
 
-#---------------------------------------------------
-# 1.5. DATABASE MIGRATIONS
-#---------------------------------------------------
-RUN_MIGRATIONS=true
+
 
 #---------------------------------------------------
-# 2. DATABASE (POSTGRES)
+
+# 1.5. DATABASE MIGRATIONS
+
 #---------------------------------------------------
+
+RUN_MIGRATIONS=true
+
+
+
+#---------------------------------------------------
+
+# 2. DATABASE (POSTGRES)
+
+#---------------------------------------------------
+
 POSTGRES_USER=postgres
+
 POSTGRES_PASSWORD=Bootje12
+
 POSTGRES_DB=agenda_automator
+
 POSTGRES_HOST=localhost
+
 POSTGRES_PORT=5433
+
+
 
 DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
 
-#---------------------------------------------------
-# 4. BEVEILIGING & ENCRYPTIE
-#---------------------------------------------------
-ENCRYPTION_KEY="IJvSU0jEVrm3CBNzdAMoDRT9sQlnZcea"
+
 
 #---------------------------------------------------
-# 5. OAUTH CLIENTS (Google)
+
+# 4. BEVEILIGING & ENCRYPTIE
+
 #---------------------------------------------------
+
+ENCRYPTION_KEY="IJvSU0jEVrm3CBNzdAMoDRT9sQlnZcea"
+
+
+
+#---------------------------------------------------
+
+# 5. OAUTH CLIENTS (Google)
+
+#---------------------------------------------------
+
 CLIENT_BASE_URL="http://localhost:3000"
+
+
 
 OAUTH_REDIRECT_URL="http://localhost:8080/api/v1/auth/google/callback"
 
+
+
 GOOGLE_OAUTH_CLIENT_ID="273644756085-9tjakd3cvbkgkct2ttubpv8r9mef3jeh.apps.googleusercontent.com"
+
 GOOGLE_OAUTH_CLIENT_SECRET="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"
 
-# NIEUW: Voor dynamic CORS
-ALLOWED_O_S=http://localhost:3000,https://prod.com
+
+
+# NIEUW: Voor dynamic CORS (GECORRIGEERD)
+
+ALLOWED_ORIGINS=http://localhost:3000,https://prod.com
+
+
 
 #---------------------------------------------------
+
 # 6. AUTHENTICATIE (JWT) - (NIEUWE SECTIE)
+
 #---------------------------------------------------
+
 # Genereer een sterke, willekeurige 32-byte sleutel
+
 JWT_SECRET_KEY="een-andere-zeer-sterke-geheime-sleutel"
 
 
@@ -2312,46 +4748,86 @@ JWT_SECRET_KEY="een-andere-zeer-sterke-geheime-sleutel"
 
 
 
-## .env.example
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\.env.example
+
 //---------------------------------------------------
+
 // 1. APPLICATIE CONFIGURATIE
+
 //---------------------------------------------------
+
 APP_ENV=development
+
+
 
 API_PORT=8080
 
+
+
 //---------------------------------------------------
+
 // 2. DATABASE (POSTGRES)
+
 //---------------------------------------------------
+
 POSTGRES_USER=postgres
+
 POSTGRES_PASSWORD=Bootje12
+
 POSTGRES_DB=agenda_automator
+
 POSTGRES_HOST=localhost
+
 POSTGRES_PORT=5433
+
+
 
 DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
 
+
+
 //---------------------------------------------------
+
 // 3. CACHE (REDIS)
+
 //---------------------------------------------------
+
 // Verwijderd, want niet gebruikt
 
-//---------------------------------------------------
-// 4. BEVEILIGING & ENCRYPTIE
-//---------------------------------------------------
-ENCRYPTION_KEY="IJvSU0jEVrm3CBNzdAMoDRT9sQlnZcea"
+
 
 //---------------------------------------------------
-// 5. OAUTH CLIENTS (Google)
+
+// 4. BEVEILIGING & ENCRYPTIE
+
 //---------------------------------------------------
+
+ENCRYPTION_KEY="IJvSU0jEVrm3CBNzdAMoDRT9sQlnZcea"
+
+
+
+//---------------------------------------------------
+
+// 5. OAUTH CLIENTS (Google)
+
+//---------------------------------------------------
+
 CLIENT_BASE_URL="http://localhost:3000"
+
+
 
 OAUTH_REDIRECT_URL="http://localhost:8080/api/v1/auth/google/callback"
 
+
+
 GOOGLE_OAUTH_CLIENT_ID="YOUR-CLIENT-ID-HERE.apps.googleusercontent.com"
+
 GOOGLE_OAUTH_CLIENT_SECRET="YOUR-CLIENT-SECRET-HERE"
 
+
+
 // NIEUW: Voor dynamic CORS
+
 ALLOWED_ORIGINS=http://localhost:3000,https://prod.com
 
 
@@ -2360,45 +4836,84 @@ ALLOWED_ORIGINS=http://localhost:3000,https://prod.com
 
 
 
-## .gitignore
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\.gitignore
+
 # Environment variables
+
 .env
 
+
+
 # Binaries for programs and plugins
+
 *.exe
+
 *.exe~
+
 *.dll
+
 *.so
+
 *.dylib
 
+
+
 # Test binary, built with `go test -c`
+
 *.test
 
+
+
 # Output of the go coverage tool
+
 *.out
 
+
+
 # Go workspace file
+
 go.work
 
+
+
 # IDE files
+
 .vscode/
+
 .idea/
+
 *.swp
+
 *.swo
 
+
+
 # OS files
+
 .DS_Store
+
 Thumbs.db
 
+
+
 # Logs
+
 *.log
 
+
+
 # Database files (for local development)
+
 *.db
+
 *.sqlite
 
+
+
 # Temporary files
+
 *.tmp
+
 *.temp
 
 
@@ -2407,58 +4922,116 @@ Thumbs.db
 
 
 
-## docker-compose.yml
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\agenda-automator-api.exe
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\docker-compose.yml
+
 version: '3.8'
 
+
+
 services:
+
   db:
+
     image: postgres:16-alpine
+
     container_name: agenda_automator_db
+
     restart: unless-stopped
+
     
+
     environment:
+
       POSTGRES_USER: postgres
+
       POSTGRES_PASSWORD: Bootje12
+
       POSTGRES_DB: agenda_automator
+
       
+
     ports:
+
       - "5433:5432"
+
     volumes:
+
       - pgdata:/var/lib/postgresql/data
+
       
+
     healthcheck:
+
       test: ["CMD-SHELL", "psql -U postgres -d agenda_automator -c 'SELECT 1'"]
+
       interval: 10s
+
       timeout: 5s
+
       retries: 5
+
       start_period: 15s
 
+
+
   app:
+
     build: .
+
     container_name: agenda_automator_app
+
     restart: unless-stopped
 
+
+
     ports:
+
       - "8080:8080"
 
+
+
     depends_on:
+
       db:
+
         condition: service_healthy
 
+
+
     environment:
+
       - DATABASE_URL=postgres://postgres:Bootje12@db:5432/agenda_automator?sslmode=disable
+
       - APP_ENV=development
+
       - API_PORT=8080
+
       - ENCRYPTION_KEY=IJvSU0jEVrm3CBNzdAMoDRT9sQlnZcea
+
       - CLIENT_BASE_URL=http://localhost:3000
+
       - OAUTH_REDIRECT_URL=http://localhost:8080/api/v1/auth/google/callback
+
       - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+
       - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+
       - RUN_MIGRATIONS=true
+
       - LOG_MAX_SIZE=10MB
+
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
 
+      # HIER IS DE TOEVOEGING:
+
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+
+
+
 volumes:
+
   pgdata:
 
 
@@ -2468,30 +5041,56 @@ volumes:
 
 
 C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\Dockerfile
+
 # Build stage
+
 FROM golang:1.24-alpine AS builder
+
+
 
 WORKDIR /app
 
+
+
 # Install dependencies
+
 COPY go.mod go.sum ./
+
 RUN go mod download
 
+
+
 # Copy source
+
 COPY . .
 
+
+
 # Build
+
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main cmd/server/main.go
 
+
+
 # Final stage
+
 FROM alpine:latest
 
+
+
 RUN apk --no-cache add ca-certificates
+
 WORKDIR /root/
+
+
 
 COPY --from=builder /app/main .
 
+
+
 EXPOSE 8080
+
+
 
 CMD ["./main"]
 
@@ -2501,157 +5100,115 @@ CMD ["./main"]
 
 
 
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\go.mod
 
-
-## go.mod
 module agenda-automator-api
+
+
 
 go 1.24.0
 
+
+
 toolchain go1.24.10
 
-require (
-	github.com/go-chi/chi/v5 v5.2.3
-	github.com/go-chi/cors v1.2.2
-	github.com/golang-jwt/jwt/v5 v5.2.1 // <-- NIEUWE AFHANKELIJKHEID
-	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.7.6
-	github.com/joho/godotenv v1.5.1
-	golang.org/x/oauth2 v0.33.0
-	google.golang.org/api v0.256.0
-)
+
 
 require (
-	cloud.google.com/go/auth v0.17.0 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute/metadata v0.9.0 // indirect
-	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
-	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
-	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
-	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
-	go.opentelemetry.io/otel v1.37.0 // indirect
-	go.opentelemetry.io/otel/metric v1.37.0 // indirect
-	go.opentelemetry.io/otel/trace v1.37.0 // indirect
-	golang.org/x/crypto v0.43.0 // indirect
-	golang.org/x/net v0.46.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251103181224-f26f9409b101 // indirect
-	google.golang.org/grpc v1.76.0 // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
+
+    github.com/go-chi/chi/v5 v5.2.3
+
+    github.com/go-chi/cors v1.2.2
+
+    github.com/golang-jwt/jwt/v5 v5.3.0
+
+    github.com/google/uuid v1.6.0
+
+    github.com/jackc/pgx/v5 v5.7.6
+
+    github.com/joho/godotenv v1.5.1
+
+    golang.org/x/oauth2 v0.33.0
+
+    google.golang.org/api v0.256.0
+
 )
 
 
 
+require (
 
+    cloud.google.com/go/auth v0.17.0 // indirect
 
+    cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 
-## go.sum
-cloud.google.com/go/auth v0.17.0 h1:74yCm7hCj2rUyyAocqnFzsAYXgJhrG26XCFimrc/Kz4=
-cloud.google.com/go/auth v0.17.0/go.mod h1:6wv/t5/6rOPAX4fJiRjKkJCvswLwdet7G8+UGXt7nCQ=
-cloud.google.com/go/auth/oauth2adapt v0.2.8 h1:keo8NaayQZ6wimpNSmW5OPc283g65QNIiLpZnkHRbnc=
-cloud.google.com/go/auth/oauth2adapt v0.2.8/go.mod h1:XQ9y31RkqZCcwJWNSx2Xvric3RrU88hAYYbjDWYDL+c=
-cloud.google.com/go/compute/metadata v0.9.0 h1:pDUj4QMoPejqq20dK0Pg2N4yG9zIkYGdBtwLoEkH9Zs=
-cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCBSM6qQI1yTBdEb3C10=
-github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
-github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg=
-github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
-github.com/go-chi/chi/v5 v5.2.3 h1:WQIt9uxdsAbgIYgid+BpYc+liqQZGMHRaUwp0JUcvdE=
-github.com/go-chi/chi/v5 v5.2.3/go.mod h1:L2yAIGWB3H+phAw1NxKwWM+7eUH/lU8pOMm5hHcoops=
-github.com/go-chi/cors v1.2.2 h1:Jmey33TE+b+rB7fT8MUy1u0I4L+NARQlK6LhzKPSyQE=
-github.com/go-chi/cors v1.2.2/go.mod h1:sSbTewc+6wYHBBCW7ytsFSn836hqM7JxpglAy2Vzc58=
-github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
-github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=
-github.com/go-logr/logr v1.4.3/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
-github.com/go-logr/stdr v1.2.2 h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=
-github.com/go-logr/stdr v1.2.2/go.mod h1:mMo/vtBO5dYbehREoey6XUKy/eSumjCCveDpRre4VKE=
-github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
-github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
-github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
-github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
-github.com/google/s2a-go v0.1.9 h1:LGD7gtMgezd8a/Xak7mEWL0PjoTQFvpRudN895yqKW0=
-github.com/google/s2a-go v0.1.9/go.mod h1:YA0Ei2ZQL3acow2O62kdp9UlnvMmU7kA6Eutn0dXayM=
-github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
-github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/googleapis/enterprise-certificate-proxy v0.3.7 h1:zrn2Ee/nWmHulBx5sAVrGgAa0f2/R35S4DJwfFaUPFQ=
-github.com/googleapis/enterprise-certificate-proxy v0.3.7/go.mod h1:MkHOF77EYAE7qfSuSS9PU6g4Nt4e11cnsDUowfwewLA=
-github.com/googleapis/gax-go/v2 v2.15.0 h1:SyjDc1mGgZU5LncH8gimWo9lW1DtIfPibOG81vgd/bo=
-github.com/googleapis/gax-go/v2 v2.15.0/go.mod h1:zVVkkxAQHa1RQpg9z2AUCMnKhi0Qld9rcmyfL1OZhoc=
-github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=
-github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
-github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 h1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=
-github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761/go.mod h1:5TJZWKEWniPve33vlWYSoGYefn3gLQRzjfDlhSJ9ZKM=
-github.com/jackc/pgx/v5 v5.7.6 h1:rWQc5FwZSPX58r1OQmkuaNicxdmExaEz5A2DO2hUuTk=
-github.com/jackc/pgx/v5 v5.7.6/go.mod h1:aruU7o91Tc2q2cFp5h4uP3f6ztExVpyVv88Xl/8Vl8M=
-github.com/jackc/puddle/v2 v2.2.2 h1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo=
-github.com/jackc/puddle/v2 v2.2.2/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
-github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
-github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
-github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
-github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
-github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
-github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
-github.com/stretchr/testify v1.10.0 h1:Xv5erBjTwe/5IxqUQTdXv5kgmIvbHo3QQyRwhJsOfJA=
-github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=
-go.opentelemetry.io/auto/sdk v1.1.0/go.mod h1:3wSPjt5PWp2RhlCcmmOial7AvC4DQqZb7a7wCow3W8A=
-go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 h1:F7Jx+6hwnZ41NSFTO5q4LYDtJRXBf2PD0rNBkeB/lus=
-go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0/go.mod h1:UHB22Z8QsdRDrnAtX4PntOl36ajSxcdUMt1sF7Y6E7Q=
-go.opentelemetry.io/otel v1.37.0 h1:9zhNfelUvx0KBfu/gb+ZgeAfAgtWrfHJZcAqFC228wQ=
-go.opentelemetry.io/otel v1.37.0/go.mod h1:ehE/umFRLnuLa/vSccNq9oS1ErUlkkK71gMcN34UG8I=
-go.opentelemetry.io/otel/metric v1.37.0 h1:mvwbQS5m0tbmqML4NqK+e3aDiO02vsf/WgbsdpcPoZE=
-go.opentelemetry.io/otel/metric v1.37.0/go.mod h1:04wGrZurHYKOc+RKeye86GwKiTb9FKm1WHtO+4EVr2E=
-go.opentelemetry.io/otel/sdk v1.37.0 h1:ItB0QUqnjesGRvNcmAcU0LyvkVyGJ2xftD29bWdDvKI=
-go.opentelemetry.io/otel/sdk v1.37.0/go.mod h1:VredYzxUvuo2q3WRcDnKDjbdvmO0sCzOvVAiY+yUkAg=
-go.opentelemetry.io/otel/sdk/metric v1.37.0 h1:90lI228XrB9jCMuSdA0673aubgRobVZFhbjxHHspCPc=
-go.opentelemetry.io/otel/sdk/metric v1.37.0/go.mod h1:cNen4ZWfiD37l5NhS+Keb5RXVWZWpRE+9WyVCpbo5ps=
-go.opentelemetry.io/otel/trace v1.37.0 h1:HLdcFNbRQBE2imdSEgm/kwqmQj1Or1l/7bW6mxVK7z4=
-go.opentelemetry.io/otel/trace v1.37.0/go.mod h1:TlgrlQ+PtQO5XFerSPUYG0JSgGyryXewPGyayAWSBS0=
-golang.org/x/crypto v0.43.0 h1:dduJYIi3A3KOfdGOHX8AVZ/jGiyPa3IbBozJ5kNuE04=
-golang.org/x/crypto v0.43.0/go.mod h1:BFbav4mRNlXJL4wNeejLpWxB7wMbc79PdRGhWKncxR0=
-golang.org/x/net v0.46.0 h1:giFlY12I07fugqwPuWJi68oOnpfqFnJIJzaIIm2JVV4=
-golang.org/x/net v0.46.0/go.mod h1:Q9BGdFy1y4nkUwiLvT5qtyhAnEHgnQ/zd8PfU6nc210=
-golang.org/x/oauth2 v0.33.0 h1:4Q+qn+E5z8gPRJfmRy7C2gGG3T4jIprK6aSYgTXGRpo=
-golang.org/x/oauth2 v0.33.0/go.mod h1:lzm5WQJQwKZ3nwavOZ3IS5Aulzxi68dUSgRHujetwEA=
-golang.org/x/sync v0.18.0 h1:kr88TuHDroi+UVf+0hZnirlk8o8T+4MrK6mr60WkH/I=
-golang.org/x/sync v0.18.0/go.mod h1:9KTHXmSnoGruLpwFjVSX0lNNA75CykiMECbovNTZqGI=
-golang.org/x/sys v0.37.0 h1:fdNQudmxPjkdUTPnLn5mdQv7Zwvbvpaxqs831goi9kQ=
-golang.org/x/sys v0.37.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
-golang.org/x/text v0.30.0 h1:yznKA/E9zq54KzlzBEAWn1NXSQ8DIp/NYMy88xJjl4k=
-golang.org/x/text v0.30.0/go.mod h1:yDdHFIX9t+tORqspjENWgzaCVXgk0yYnYuSZ8UzzBVM=
-gonum.org/v1/gonum v0.16.0 h1:5+ul4Swaf3ESvrOnidPp4GZbzf0mxVQpDCYUQE7OJfk=
-gonum.org/v1/gonum v0.16.0/go.mod h1:fef3am4MQ93R2HHpKnLk4/Tbh/s0+wqD5nfa6Pnwy4E=
-google.golang.org/api v0.256.0 h1:u6Khm8+F9sxbCTYNoBHg6/Hwv0N/i+V94MvkOSor6oI=
-google.golang.org/api v0.256.0/go.mod h1:KIgPhksXADEKJlnEoRa9qAII4rXcy40vfI8HRqcU964=
-google.golang.org/genproto v0.0.0-20250603155806-513f23925822 h1:rHWScKit0gvAPuOnu87KpaYtjK5zBMLcULh7gxkCXu4=
-google.golang.org/genproto v0.0.0-20250603155806-513f23925822/go.mod h1:HubltRL7rMh0LfnQPkMH4NPDFEWp0jw3vixw7jEM53s=
-google.golang.org/genproto/googleapis/api v0.0.0-20250804133106-a7a43d27e69b h1:ULiyYQ0FdsJhwwZUwbaXpZF5yUE3h+RA+gxvBu37ucc=
-google.golang.org/genproto/googleapis/api v0.0.0-20250804133106-a7a43d27e69b/go.mod h1:oDOGiMSXHL4sDTJvFvIB9nRQCGdLP1o/iVaqQK8zB+M=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20251103181224-f26f9409b101 h1:tRPGkdGHuewF4UisLzzHHr1spKw92qLM98nIzxbC0wY=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20251103181224-f26f9409b101/go.mod h1:7i2o+ce6H/6BluujYR+kqX3GKH+dChPTQU19wjRPiGk=
-google.golang.org/grpc v1.76.0 h1:UnVkv1+uMLYXoIz6o7chp59WfQUYA2ex/BXQ9rHZu7A=
-google.golang.org/grpc v1.76.0/go.mod h1:Ju12QI8M6iQJtbcsV+awF5a4hfJMLi4X0JLo94ULZ6c=
-google.golang.org/protobuf v1.36.10 h1:AYd7cD/uASjIL6Q9LiTjz8JLcrh/88q5UObnmY3aOOE=
-google.golang.org/protobuf v1.36.10/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=
-gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
-gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
-gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
-gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+    cloud.google.com/go/compute/metadata v0.9.0 // indirect
+
+    github.com/felixge/httpsnoop v1.0.4 // indirect
+
+    github.com/go-logr/logr v1.4.3 // indirect
+
+    github.com/go-logr/stdr v1.2.2 // indirect
+
+    github.com/google/s2a-go v0.1.9 // indirect
+
+    github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
+
+    github.com/googleapis/gax-go/v2 v2.15.0 // indirect
+
+    github.com/jackc/pgpassfile v1.0.0 // indirect
+
+    github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+
+    github.com/jackc/puddle/v2 v2.2.2 // indirect
+
+    go.opentelemetry.io/auto/sdk v1.1.0 // indirect
+
+    go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
+
+    go.opentelemetry.io/otel v1.37.0 // indirect
+
+    go.opentelemetry.io/otel/metric v1.37.0 // indirect
+
+    go.opentelemetry.io/otel/trace v1.37.0 // indirect
+
+    golang.org/x/crypto v0.43.0 // indirect
+
+    golang.org/x/net v0.46.0 // indirect
+
+    golang.org/x/sync v0.18.0 // indirect
+
+    golang.org/x/sys v0.37.0 // indirect
+
+    golang.org/x/text v0.30.0 // indirect
+
+    google.golang.org/genproto/googleapis/rpc v0.0.0-20251103181224-f26f9409b101 // indirect
+
+    google.golang.org/grpc v1.76.0 // indirect
+
+    google.golang.org/protobuf v1.36.10 // indirect
+
+)
 
 
 
 
-C:\Users\JJALa\Desktop\Github\Agenda tool Jeffrey\Jeffrey-s-Agenda-Tool\main.exe
-## README.md
-C:\Users\JJALa\Desktop\Github\Agenda tool Jeffrey\Jeffrey-s-Agenda-Tool\server.exe
+
+
+
+
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\go.sum
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\main.exe
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\migrate.exe
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\README.md
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\server.exe
+
+C:\Users\jeffrey\Desktop\Githubmains\AgendaTool FrontBackend\Backend\Jeffrey-s-Agenda-Tool BACKEND\Volledige Codebase Backend.md
+
+
+
