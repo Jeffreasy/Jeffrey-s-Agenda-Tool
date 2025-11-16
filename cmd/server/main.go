@@ -34,21 +34,23 @@ func main() {
 	// 1.5. Initialiseer logger
 	log, err := logger.NewLogger()
 	if err != nil {
-		log.Fatal("Could not initialize logger", zap.Error(err))
+		panic("Could not initialize logger: " + err.Error()) // Can't log if logger fails
 	}
 	defer log.Sync()
 
 	// 2. Maak verbinding met de Database
 	pool, err := database.ConnectDB(log)
 	if err != nil {
-		log.Fatal("could not connect to the database", zap.Error(err))
+		log.Error("could not connect to the database", zap.Error(err))
+		return
 	}
 	defer pool.Close()
 
 	// -----------------------------------------------------
 	// AANGEPAST: Stap 2.5 - Voer migraties uit
 	if err = database.RunMigrations(context.Background(), pool, log); err != nil {
-		log.Fatal("database migrations failed", zap.Error(err))
+		log.Error("database migrations failed", zap.Error(err))
+		return
 	}
 	// -----------------------------------------------------
 
@@ -59,7 +61,8 @@ func main() {
 	redirectURL := os.Getenv("OAUTH_REDIRECT_URL")
 
 	if clientID == "" || clientSecret == "" || redirectURL == "" {
-		log.Fatal("Google OAuth configuration missing", zap.String("component", "main"))
+		log.Error("Google OAuth configuration missing", zap.String("component", "main"))
+		return
 	}
 
 	googleOAuthConfig := &oauth2.Config{
@@ -100,7 +103,8 @@ func main() {
 	// 5. Initialiseer de Worker (geef de store mee)
 	appWorker, err := worker.NewWorker(dbStore, log)
 	if err != nil {
-		log.Fatal("could not initialize worker", zap.Error(err))
+		log.Error("could not initialize worker", zap.Error(err))
+		return
 	}
 
 	// 6. Start de Worker in de achtergrond
@@ -118,6 +122,6 @@ func main() {
 	log.Info("starting API server", zap.String("port", port), zap.String("component", "main"))
 
 	if err = http.ListenAndServe(":"+port, apiServer.Router); err != nil {
-		log.Fatal("could not start server", zap.Error(err))
+		log.Error("could not start server", zap.Error(err))
 	}
 }

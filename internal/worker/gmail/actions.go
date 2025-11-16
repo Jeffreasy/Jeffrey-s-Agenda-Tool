@@ -15,7 +15,7 @@ import (
 func (gp *GmailProcessor) executeAutoReply(
 	_ context.Context,
 	srv *gmail.Service,
-	acc domain.ConnectedAccount,
+	acc *domain.ConnectedAccount,
 	message *gmail.Message,
 	rule domain.GmailAutomationRule,
 ) error {
@@ -38,7 +38,7 @@ func (gp *GmailProcessor) executeAutoReply(
 func (gp *GmailProcessor) executeAddLabel(
 	_ context.Context,
 	srv *gmail.Service,
-	_ domain.ConnectedAccount,
+	_ *domain.ConnectedAccount,
 	message *gmail.Message,
 	rule domain.GmailAutomationRule,
 ) error {
@@ -65,7 +65,7 @@ func (gp *GmailProcessor) executeAddLabel(
 func (gp *GmailProcessor) executeRemoveLabel(
 	_ context.Context,
 	srv *gmail.Service,
-	_ domain.ConnectedAccount,
+	_ *domain.ConnectedAccount,
 	message *gmail.Message,
 	rule domain.GmailAutomationRule,
 ) error {
@@ -92,7 +92,7 @@ func (gp *GmailProcessor) executeRemoveLabel(
 func (gp *GmailProcessor) executeMarkRead(
 	_ context.Context,
 	srv *gmail.Service,
-	_ domain.ConnectedAccount,
+	_ *domain.ConnectedAccount,
 	message *gmail.Message,
 	_ domain.GmailAutomationRule,
 ) error {
@@ -106,7 +106,7 @@ func (gp *GmailProcessor) executeMarkRead(
 func (gp *GmailProcessor) executeMarkUnread(
 	_ context.Context,
 	srv *gmail.Service,
-	_ domain.ConnectedAccount,
+	_ *domain.ConnectedAccount,
 	message *gmail.Message,
 	_ domain.GmailAutomationRule,
 ) error {
@@ -120,7 +120,7 @@ func (gp *GmailProcessor) executeMarkUnread(
 func (gp *GmailProcessor) executeArchive(
 	_ context.Context,
 	srv *gmail.Service,
-	_ domain.ConnectedAccount,
+	_ *domain.ConnectedAccount,
 	message *gmail.Message,
 	_ domain.GmailAutomationRule,
 ) error {
@@ -134,7 +134,7 @@ func (gp *GmailProcessor) executeArchive(
 func (gp *GmailProcessor) executeTrash(
 	_ context.Context,
 	srv *gmail.Service,
-	_ domain.ConnectedAccount,
+	_ *domain.ConnectedAccount,
 	message *gmail.Message,
 	_ domain.GmailAutomationRule,
 ) error {
@@ -148,7 +148,7 @@ func (gp *GmailProcessor) executeTrash(
 func (gp *GmailProcessor) executeStar(
 	_ context.Context,
 	srv *gmail.Service,
-	_ domain.ConnectedAccount,
+	_ *domain.ConnectedAccount,
 	message *gmail.Message,
 	_ domain.GmailAutomationRule,
 ) error {
@@ -162,7 +162,7 @@ func (gp *GmailProcessor) executeStar(
 func (gp *GmailProcessor) executeUnstar(
 	_ context.Context,
 	srv *gmail.Service,
-	_ domain.ConnectedAccount,
+	_ *domain.ConnectedAccount,
 	message *gmail.Message,
 	_ domain.GmailAutomationRule,
 ) error {
@@ -177,7 +177,7 @@ func (gp *GmailProcessor) executeUnstar(
 func (gp *GmailProcessor) executeForward(
 	_ context.Context,
 	_ *gmail.Service,
-	_ domain.ConnectedAccount,
+	_ *domain.ConnectedAccount,
 	_ *gmail.Message,
 	_ domain.GmailAutomationRule,
 ) error {

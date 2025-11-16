@@ -88,12 +88,13 @@ func (w *Worker) checkAccounts(ctx context.Context) error {
 	)
 
 	var wg sync.WaitGroup
-	for _, acc := range accounts {
+	for i := range accounts {
 		wg.Add(1)
-		go func(acc domain.ConnectedAccount) {
+		acc := &accounts[i]
+		go func() {
 			defer wg.Done()
 			w.processAccount(ctx, acc)
-		}(acc)
+		}()
 	}
 	wg.Wait()
 
@@ -101,7 +102,7 @@ func (w *Worker) checkAccounts(ctx context.Context) error {
 }
 
 // processAccount (ZWAAR VEREENVOUDIGD)
-func (w *Worker) processAccount(ctx context.Context, acc domain.ConnectedAccount) {
+func (w *Worker) processAccount(ctx context.Context, acc *domain.ConnectedAccount) {
 	// 1. Haal een gegarandeerd geldig token op.
 	// De store regelt de decryptie, check, refresh, en update.
 	token, err := w.store.GetValidTokenForAccount(ctx, acc.ID)

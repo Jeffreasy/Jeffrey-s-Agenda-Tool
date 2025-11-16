@@ -12,7 +12,7 @@ import (
 )
 
 // fetchRecentMessages fetches recent messages for full sync
-func (gp *GmailProcessor) fetchRecentMessages(srv *gmail.Service, _ domain.ConnectedAccount) ([]*gmail.Message, error) {
+func (gp *GmailProcessor) fetchRecentMessages(srv *gmail.Service, _ *domain.ConnectedAccount) ([]*gmail.Message, error) {
 	oneDayAgo := time.Now().Add(-24 * time.Hour)
 	query := fmt.Sprintf("after:%d", oneDayAgo.Unix())
 

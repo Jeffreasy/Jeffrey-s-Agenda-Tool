@@ -29,7 +29,7 @@ func NewGmailProcessor(s store.Storer) *GmailProcessor {
 }
 
 // ProcessMessages processes Gmail messages for automation rules
-func (gp *GmailProcessor) ProcessMessages(ctx context.Context, acc domain.ConnectedAccount, token *oauth2.Token) error {
+func (gp *GmailProcessor) ProcessMessages(ctx context.Context, acc *domain.ConnectedAccount, token *oauth2.Token) error {
 	// Create Gmail service
 	client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
 	srv, err := gmail.NewService(ctx, option.WithHTTPClient(client))

@@ -31,7 +31,7 @@ func NewCalendarProcessor(s store.Storer) *CalendarProcessor {
 // ProcessEvents processes calendar events for automation rules.
 func (cp *CalendarProcessor) ProcessEvents(
 	ctx context.Context,
-	acc domain.ConnectedAccount,
+	acc *domain.ConnectedAccount,
 	token *oauth2.Token,
 ) error {
 	// Create calendar service

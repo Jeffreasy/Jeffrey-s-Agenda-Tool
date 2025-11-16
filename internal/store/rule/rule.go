@@ -38,6 +38,22 @@ func NewRuleStore(pool *pgxpool.Pool) *RuleStore {
 	return &RuleStore{pool: pool}
 }
 
+// scanRule scans a database row into an AutomationRule
+func scanRule(row pgx.Row) (domain.AutomationRule, error) {
+	var rule domain.AutomationRule
+	err := row.Scan(
+		&rule.ID,
+		&rule.ConnectedAccountID,
+		&rule.Name,
+		&rule.IsActive,
+		&rule.TriggerConditions,
+		&rule.ActionParams,
+		&rule.CreatedAt,
+		&rule.UpdatedAt,
+	)
+	return rule, err
+}
+
 // CreateAutomationRule creates a new automation rule.
 func (s *RuleStore) CreateAutomationRule(
 	ctx context.Context,
@@ -59,23 +75,7 @@ func (s *RuleStore) CreateAutomationRule(
 		arg.ActionParams,
 	)
 
-	var rule domain.AutomationRule
-	err := row.Scan(
-		&rule.ID,
-		&rule.ConnectedAccountID,
-		&rule.Name,
-		&rule.IsActive,
-		&rule.TriggerConditions,
-		&rule.ActionParams,
-		&rule.CreatedAt,
-		&rule.UpdatedAt,
-	)
-
-	if err != nil {
-		return domain.AutomationRule{}, err
-	}
-
-	return rule, nil
+	return scanRule(row)
 }
 
 // GetRuleByID ...
@@ -167,23 +167,7 @@ func (s *RuleStore) UpdateRule(ctx context.Context, arg UpdateRuleParams) (domai
 		arg.RuleID,
 	)
 
-	var rule domain.AutomationRule
-	err := row.Scan(
-		&rule.ID,
-		&rule.ConnectedAccountID,
-		&rule.Name,
-		&rule.IsActive,
-		&rule.TriggerConditions,
-		&rule.ActionParams,
-		&rule.CreatedAt,
-		&rule.UpdatedAt,
-	)
-
-	if err != nil {
-		return domain.AutomationRule{}, err
-	}
-
-	return rule, nil
+	return scanRule(row)
 }
 
 // ToggleRuleStatus zet de 'is_active' boolean van een regel om.

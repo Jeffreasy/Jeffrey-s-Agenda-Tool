@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 // storeMessageInDB stores a Gmail message in the database.
 func (gp *GmailProcessor) storeMessageInDB(
 	ctx context.Context,
-	acc domain.ConnectedAccount,
+	acc *domain.ConnectedAccount,
 	message *gmail.Message,
 ) error {
 	subject := gp.getHeaderValue(message.Payload.Headers, "Subject")
@@ -191,14 +192,16 @@ func (gp *GmailProcessor) logGmailAutomationSuccess(
 		Status:             domain.LogSuccess,
 		TriggerDetails: json.RawMessage(
 			fmt.Sprintf(
-				`{"gmail_message_id": "%s", "gmail_thread_id": "%s"}`,
+				`{"gmail_message_id": %q, "gmail_thread_id": %q}`,
 				messageID,
 				threadID,
 			),
 		),
-		ActionDetails: json.RawMessage(fmt.Sprintf(`{"details": "%s"}`, details)),
+		ActionDetails: json.RawMessage(fmt.Sprintf(`{"details": %q}`, details)),
 	}
-	gp.store.CreateAutomationLog(ctx, params)
+	if err := gp.store.CreateAutomationLog(ctx, params); err != nil {
+		log.Printf("Failed to create automation log: %v", err)
+	}
 }
 
 func (gp *GmailProcessor) logGmailAutomationFailure(
@@ -213,14 +216,16 @@ func (gp *GmailProcessor) logGmailAutomationFailure(
 		Status:             domain.LogFailure,
 		TriggerDetails: json.RawMessage(
 			fmt.Sprintf(
-				`{"gmail_message_id": "%s", "gmail_thread_id": "%s"}`,
+				`{"gmail_message_id": %q, "gmail_thread_id": %q}`,
 				messageID,
 				threadID,
 			),
 		),
 		ErrorMessage: errorMsg,
 	}
-	gp.store.CreateAutomationLog(ctx, params)
+	if err := gp.store.CreateAutomationLog(ctx, params); err != nil {
+		log.Printf("Failed to create automation log: %v", err)
+	}
 }
 
 func stringPtr(s string) *string {

@@ -17,7 +17,7 @@ import (
 func (gp *GmailProcessor) processMessageAgainstRules(
 	ctx context.Context,
 	srv *gmail.Service,
-	acc domain.ConnectedAccount,
+	acc *domain.ConnectedAccount,
 	message *gmail.Message,
 	rules []domain.GmailAutomationRule,
 ) error {
@@ -100,7 +100,7 @@ func (gp *GmailProcessor) checkRuleMatch(message *gmail.Message, rule domain.Gma
 func (gp *GmailProcessor) executeRuleAction(
 	ctx context.Context,
 	srv *gmail.Service,
-	acc domain.ConnectedAccount,
+	acc *domain.ConnectedAccount,
 	message *gmail.Message,
 	rule domain.GmailAutomationRule,
 ) error {
