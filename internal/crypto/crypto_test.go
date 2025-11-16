@@ -6,10 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testEncryptionKey = "12345678901234567890123456789012" // 32 bytes for AES-256
+
 func TestEncryptDecrypt(t *testing.T) {
 	// Set up a test encryption key
-	testKey := "12345678901234567890123456789012" // 32 bytes for AES-256
-	t.Setenv("ENCRYPTION_KEY", testKey)
+	t.Setenv("ENCRYPTION_KEY", testEncryptionKey)
 
 	originalText := []byte("Hello, World! This is a test message.")
 
@@ -54,8 +55,7 @@ func TestDecrypt_InvalidKeyLength(t *testing.T) {
 
 func TestDecrypt_CiphertextTooShort(t *testing.T) {
 	// Set up a valid encryption key
-	testKey := "12345678901234567890123456789012"
-	t.Setenv("ENCRYPTION_KEY", testKey)
+	t.Setenv("ENCRYPTION_KEY", testEncryptionKey)
 
 	// Ciphertext that's too short (shorter than nonce size)
 	ciphertext := []byte("short")
@@ -68,8 +68,7 @@ func TestDecrypt_CiphertextTooShort(t *testing.T) {
 
 func TestDecrypt_InvalidCiphertext(t *testing.T) {
 	// Set up a valid encryption key
-	testKey := "12345678901234567890123456789012"
-	t.Setenv("ENCRYPTION_KEY", testKey)
+	t.Setenv("ENCRYPTION_KEY", testEncryptionKey)
 
 	// Create some fake ciphertext that's long enough but invalid
 	ciphertext := make([]byte, 100)
@@ -85,8 +84,7 @@ func TestDecrypt_InvalidCiphertext(t *testing.T) {
 
 func TestEncryptDecrypt_EmptyData(t *testing.T) {
 	// Set up a test encryption key
-	testKey := "12345678901234567890123456789012"
-	t.Setenv("ENCRYPTION_KEY", testKey)
+	t.Setenv("ENCRYPTION_KEY", testEncryptionKey)
 
 	originalText := []byte("")
 
@@ -104,8 +102,7 @@ func TestEncryptDecrypt_EmptyData(t *testing.T) {
 
 func TestEncryptDecrypt_LargeData(t *testing.T) {
 	// Set up a test encryption key
-	testKey := "12345678901234567890123456789012"
-	t.Setenv("ENCRYPTION_KEY", testKey)
+	t.Setenv("ENCRYPTION_KEY", testEncryptionKey)
 
 	// Create a large test message
 	originalText := make([]byte, 10000)

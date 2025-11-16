@@ -15,6 +15,8 @@ import (
 	"google.golang.org/api/calendar/v3"
 )
 
+const defaultCalendarID = "primary"
+
 // HandleCreateEvent creates a new event in Google Calendar.
 func HandleCreateEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +29,7 @@ func HandleCreateEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc 
 
 		calendarID := r.URL.Query().Get("calendarId") // Ondersteun secundaire calendars
 		if calendarID == "" {
-			calendarID = "primary"
+			calendarID = defaultCalendarID
 		}
 
 		var req calendar.Event
@@ -76,7 +78,7 @@ func HandleUpdateEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc 
 
 		calendarID := r.URL.Query().Get("calendarId") // Ondersteun secundaire calendars
 		if calendarID == "" {
-			calendarID = "primary"
+			calendarID = defaultCalendarID
 		}
 
 		var req calendar.Event
@@ -119,7 +121,7 @@ func HandleDeleteEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc 
 		eventID := chi.URLParam(r, "eventId")
 		calendarID := r.URL.Query().Get("calendarId") // Optioneel param voor secundaire calendar
 		if calendarID == "" {
-			calendarID = "primary"
+			calendarID = defaultCalendarID
 		}
 
 		accountID, err := uuid.Parse(accountIDStr)
@@ -167,7 +169,7 @@ func HandleGetCalendarEvents(store store.Storer, logger *zap.Logger) http.Handle
 
 		calendarID := r.URL.Query().Get("calendarId") // Nieuw: Ondersteun secundaire calendars
 		if calendarID == "" {
-			calendarID = "primary"
+			calendarID = defaultCalendarID
 		}
 
 		// -----------------------------------------------------------------
@@ -363,7 +365,7 @@ func HandleGetAggregatedEvents(store store.Storer, logger *zap.Logger) http.Hand
 
 			calID := acc.CalendarID
 			if calID == "" {
-				calID = "primary"
+				calID = defaultCalendarID
 			}
 
 			events, err := client.Events.List(calID).
