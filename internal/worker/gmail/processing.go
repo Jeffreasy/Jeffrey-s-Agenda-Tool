@@ -1,3 +1,4 @@
+// Package gmail handles Gmail-related background tasks.
 package gmail
 
 import (
@@ -124,4 +125,3 @@ func (gp *GmailProcessor) executeRuleAction(ctx context.Context, srv *gmail.Serv
 
 	return fmt.Errorf("unknown action type: %s", rule.ActionType)
 }
-

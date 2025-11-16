@@ -87,7 +87,7 @@ type Event struct {
 	Description string    `json:"description"`
 	Start       time.Time `json:"start"`
 	End         time.Time `json:"end"`
-	CalendarId  string    `json:"calendarId"`
+	CalendarID  string    `json:"calendarId"`
 }
 
 // GmailMessageStatus represents the status of a Gmail message
@@ -221,4 +221,3 @@ type GmailContact struct {
 	LastContacted *time.Time `db:"last_contacted"    json:"last_contacted,omitempty"`
 	ContactSource string     `db:"contact_source"    json:"contact_source"`
 }
-

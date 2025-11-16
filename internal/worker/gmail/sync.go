@@ -1,3 +1,4 @@
+// Package gmail handles Gmail-related background tasks.
 package gmail
 
 import (
@@ -50,4 +51,3 @@ func (gp *GmailProcessor) processHistoryItems(history *gmail.ListHistoryResponse
 
 	return messages, nil
 }
-

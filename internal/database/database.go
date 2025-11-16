@@ -24,13 +24,13 @@ type Querier interface {
 // ConnectDB maakt en test een verbinding met de database.
 func ConnectDB(log *zap.Logger) (*pgxpool.Pool, error) {
 	start := time.Now()
-	dbUrl := os.Getenv("DATABASE_URL")
+	dbURL := os.Getenv("DATABASE_URL")
 	log.Info("connecting to database", zap.String("component", "database"))
-	if dbUrl == "" {
+	if dbURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL environment variable is not set")
 	}
 
-	pool, err := pgxpool.New(context.Background(), dbUrl)
+	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		logger.LogDuration(log, "database_connection_pool_creation", time.Since(start).Milliseconds(), zap.Error(err), zap.String("component", "database"))
 		return nil, fmt.Errorf("unable to create connection pool: %v", err)

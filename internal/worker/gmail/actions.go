@@ -1,3 +1,4 @@
+// Package gmail handles Gmail-related background tasks.
 package gmail
 
 import (
@@ -122,4 +123,3 @@ func (gp *GmailProcessor) executeForward(_ context.Context, _ *gmail.Service, _ 
 	log.Printf("[Gmail] Forward action not yet implemented")
 	return nil
 }
-

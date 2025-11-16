@@ -123,8 +123,8 @@ func HandleGetGmailMessages(store store.Storer, log *zap.Logger) http.HandlerFun
 			}
 
 			// Check if starred
-			for _, labelId := range msg.LabelIds {
-				if labelId == "STARRED" {
+			for _, labelID := range msg.LabelIds {
+				if labelID == "STARRED" {
 					isStarred = true
 					break
 				}
@@ -132,8 +132,8 @@ func HandleGetGmailMessages(store store.Storer, log *zap.Logger) http.HandlerFun
 
 			// Determine status
 			status := "read"
-			for _, labelId := range msg.LabelIds {
-				if labelId == "UNREAD" {
+			for _, labelID := range msg.LabelIds {
+				if labelID == "UNREAD" {
 					status = "unread"
 					break
 				}

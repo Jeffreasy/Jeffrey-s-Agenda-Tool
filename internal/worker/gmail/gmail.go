@@ -1,3 +1,4 @@
+// Package gmail handles Gmail-related background tasks.
 package gmail
 
 import (
@@ -123,4 +124,3 @@ func (gp *GmailProcessor) ProcessMessages(ctx context.Context, acc domain.Connec
 	log.Printf("[Gmail] Completed Gmail processing for %s", acc.Email)
 	return nil
 }
-

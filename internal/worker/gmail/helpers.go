@@ -1,3 +1,4 @@
+// Package gmail handles Gmail-related background tasks.
 package gmail
 
 import (
@@ -197,4 +198,3 @@ func (gp *GmailProcessor) logGmailAutomationFailure(ctx context.Context, account
 func stringPtr(s string) *string {
 	return &s
 }
-
