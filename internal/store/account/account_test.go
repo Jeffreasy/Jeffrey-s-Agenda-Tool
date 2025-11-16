@@ -26,4 +26,3 @@ func TestErrTokenRevoked(t *testing.T) {
 	assert.NotNil(t, ErrTokenRevoked)
 	assert.Contains(t, ErrTokenRevoked.Error(), "token access has been revoked")
 }
-

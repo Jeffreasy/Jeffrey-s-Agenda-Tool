@@ -66,4 +66,3 @@ func Decrypt(ciphertext []byte) ([]byte, error) {
 
 	return plaintext, nil
 }
-

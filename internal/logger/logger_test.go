@@ -134,4 +134,3 @@ func TestWithContext(t *testing.T) {
 
 	assert.Equal(t, "test", component)
 }
-

@@ -19,4 +19,3 @@ func TestNewRuleStore(t *testing.T) {
 	assert.NotNil(t, store)
 	assert.Equal(t, pool, store.pool)
 }
-

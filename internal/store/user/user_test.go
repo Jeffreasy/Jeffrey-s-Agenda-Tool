@@ -26,4 +26,3 @@ func TestNewUserStore(t *testing.T) {
 
 // Note: Full integration tests with a real database would be more comprehensive,
 // but these tests verify the basic structure and nil-safety of the UserStore.
-

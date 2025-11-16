@@ -33,7 +33,7 @@ type (
 // ErrTokenRevoked re-export error for backward compatibility
 var ErrTokenRevoked = account.ErrTokenRevoked
 
-// Storer is de interface voor al onze database-interacties.
+// Storer is de interface voor al onze database-interacties (interactions).
 type Storer interface {
 	CreateUser(ctx context.Context, email, name string) (domain.User, error)
 	GetUserByID(ctx context.Context, userID uuid.UUID) (domain.User, error)

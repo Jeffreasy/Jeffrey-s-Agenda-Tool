@@ -15,4 +15,3 @@ func TestNewGmailProcessor(t *testing.T) {
 	// Test constructor with a mock store would require implementing the interface
 	// For now, just test nil case
 }
-

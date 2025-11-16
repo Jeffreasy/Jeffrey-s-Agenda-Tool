@@ -225,4 +225,3 @@ func (m *MockStore) GetGmailSyncState(ctx context.Context, accountID uuid.UUID) 
 	args := m.Called(ctx, accountID)
 	return args.Get(0).(*string), args.Get(1).(*time.Time), args.Error(2)
 }
-

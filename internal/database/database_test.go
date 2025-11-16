@@ -39,4 +39,3 @@ func TestConnectDB_InvalidDatabaseURL(t *testing.T) {
 
 // Note: Testing successful connection would require a real database
 // For integration tests, you would set up a test database and use a valid DATABASE_URL
-

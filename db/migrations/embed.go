@@ -11,6 +11,7 @@ var InitialSchemaUp string
 var InitialSchemaDown string
 
 // Gmail schema migrations
+//
 //go:embed 000002_gmail_schema.up.sql
 var GmailSchemaUp string
 
@@ -18,6 +19,7 @@ var GmailSchemaUp string
 var GmailSchemaDown string
 
 // Performance optimization migrations
+//
 //go:embed 000003_optimization_indexes.up.sql
 var OptimizationIndexesUp string
 
@@ -25,6 +27,7 @@ var OptimizationIndexesUp string
 var OptimizationIndexesDown string
 
 // Table structure optimization migrations
+//
 //go:embed 000004_table_optimizations.up.sql
 var TableOptimizationsUp string
 
@@ -32,6 +35,7 @@ var TableOptimizationsUp string
 var TableOptimizationsDown string
 
 // Calendar-specific optimization migrations
+//
 //go:embed 000005_calendar_optimizations.up.sql
 var CalendarOptimizationsUp string
 
@@ -39,6 +43,7 @@ var CalendarOptimizationsUp string
 var CalendarOptimizationsDown string
 
 // Connected accounts optimization migrations
+//
 //go:embed 000006_connected_accounts_optimization.up.sql
 var ConnectedAccountsOptimizationUp string
 
@@ -46,6 +51,6 @@ var ConnectedAccountsOptimizationUp string
 var ConnectedAccountsOptimizationDown string
 
 // Optioneel: als je ALLE sql-bestanden als een bestandssysteem wilt:
+//
 //go:embed *.sql
 var SQLFiles embed.FS
-

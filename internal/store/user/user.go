@@ -83,4 +83,3 @@ func (s *UserStore) DeleteUser(ctx context.Context, userID uuid.UUID) error {
 	}
 	return nil
 }
-

@@ -476,4 +476,3 @@ func TestHandleGetGmailRules(t *testing.T) {
 	// Test that the handler processes the request
 	mockStore.AssertExpectations(t)
 }
-

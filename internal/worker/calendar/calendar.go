@@ -274,4 +274,3 @@ func (cp *CalendarProcessor) eventExists(srv *calendar.Service, start, end time.
 
 	return false
 }
-
