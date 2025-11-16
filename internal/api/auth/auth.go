@@ -47,8 +47,7 @@ func generateJWT(userID uuid.UUID) (string, error) {
 	return tokenString, nil
 }
 
-// handleGoogleLogin start de OAuth-flow
-// AANGEPAST: Accepteert nu log *zap.Logger (voor consistentie met api/server.go)
+// HandleGoogleLogin starts the OAuth flow to Google.
 func HandleGoogleLogin(oauthConfig *oauth2.Config, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		b := make([]byte, 32)
@@ -69,8 +68,7 @@ func HandleGoogleLogin(oauthConfig *oauth2.Config, log *zap.Logger) http.Handler
 	}
 }
 
-// handleGoogleCallback is het endpoint dat Google aanroept na de login
-// AANGEPAST: Accepteert nu log *zap.Logger
+// HandleGoogleCallback handles the callback from Google after login.
 func HandleGoogleCallback(storer store.Storer, oauthConfig *oauth2.Config, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

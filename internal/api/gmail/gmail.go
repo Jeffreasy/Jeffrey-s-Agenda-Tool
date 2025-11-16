@@ -20,8 +20,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 )
 
-// handleGetGmailMessages haalt Gmail berichten op
-// AANGEPAST: Accepteert nu log *zap.Logger
+// HandleGetGmailMessages retrieves Gmail messages.
 func HandleGetGmailMessages(store store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accountIDStr := chi.URLParam(r, "accountId")
@@ -195,8 +194,7 @@ func HandleGetGmailMessages(store store.Storer, log *zap.Logger) http.HandlerFun
 	}
 }
 
-// handleSendGmailMessage verstuurt een email
-// AANGEPAST: Accepteert nu log *zap.Logger
+// HandleSendGmailMessage sends an email using Gmail.
 func HandleSendGmailMessage(store store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accountIDStr := chi.URLParam(r, "accountId")
@@ -263,8 +261,7 @@ func HandleSendGmailMessage(store store.Storer, log *zap.Logger) http.HandlerFun
 	}
 }
 
-// handleGetGmailLabels haalt Gmail labels op
-// AANGEPAST: Accepteert nu log *zap.Logger
+// HandleGetGmailLabels retrieves Gmail labels.
 func HandleGetGmailLabels(store store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accountIDStr := chi.URLParam(r, "accountId")
@@ -296,8 +293,7 @@ func HandleGetGmailLabels(store store.Storer, log *zap.Logger) http.HandlerFunc 
 	}
 }
 
-// handleCreateGmailDraft creert een Gmail draft
-// AANGEPAST: Accepteert nu log *zap.Logger
+// HandleCreateGmailDraft creates a Gmail draft.
 func HandleCreateGmailDraft(store store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accountIDStr := chi.URLParam(r, "accountId")
@@ -362,8 +358,7 @@ func HandleCreateGmailDraft(store store.Storer, log *zap.Logger) http.HandlerFun
 	}
 }
 
-// handleGetGmailDrafts haalt Gmail drafts op
-// AANGEPAST: Accepteert nu log *zap.Logger
+// HandleGetGmailDrafts retrieves Gmail drafts.
 func HandleGetGmailDrafts(store store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accountIDStr := chi.URLParam(r, "accountId")

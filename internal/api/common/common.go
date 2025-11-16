@@ -86,7 +86,7 @@ func GetGmailClient(ctx context.Context, store store.Storer, accountID uuid.UUID
 	return gmail.NewService(cleanCtx, option.WithHTTPClient(client))
 }
 
-// parseEmailAddresses parses a comma-separated string of email addresses
+// ParseEmailAddresses parses a comma-separated string of email addresses.
 func ParseEmailAddresses(emailString string) []string {
 	if emailString == "" {
 		return []string{}
@@ -105,7 +105,7 @@ func ParseEmailAddresses(emailString string) []string {
 	return emails
 }
 
-// extractMessageBody extracts the message body from Gmail message payload
+// ExtractMessageBody extracts the message body from a Gmail message payload.
 func ExtractMessageBody(payload *gmail.MessagePart) string {
 	if payload == nil {
 		return ""

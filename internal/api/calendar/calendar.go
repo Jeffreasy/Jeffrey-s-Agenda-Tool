@@ -14,7 +14,7 @@ import (
 	"google.golang.org/api/calendar/v3"
 )
 
-// handleCreateEvent creert een nieuw event in Google Calendar
+// HandleCreateEvent creates a new event in Google Calendar.
 func HandleCreateEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accountIDStr := chi.URLParam(r, "accountId")
@@ -52,7 +52,7 @@ func HandleCreateEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc 
 	}
 }
 
-// handleUpdateEvent update een bestaand event
+// HandleUpdateEvent updates an existing event.
 func HandleUpdateEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accountIDStr := chi.URLParam(r, "accountId")
@@ -91,7 +91,7 @@ func HandleUpdateEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc 
 	}
 }
 
-// handleDeleteEvent verwijdert een event
+// HandleDeleteEvent deletes an event.
 func HandleDeleteEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accountIDStr := chi.URLParam(r, "accountId")
@@ -124,7 +124,7 @@ func HandleDeleteEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc 
 	}
 }
 
-// handleGetCalendarEvents haalt events op (nu met optionele calendarId param)
+// HandleGetCalendarEvents retrieves events (optional calendarId param).
 func HandleGetCalendarEvents(store store.Storer, logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accountIDStr := chi.URLParam(r, "accountId")
@@ -187,7 +187,7 @@ func HandleGetCalendarEvents(store store.Storer, logger *zap.Logger) http.Handle
 	}
 }
 
-// handleListCalendars haalt alle calendars op voor een account
+// HandleListCalendars lists calendars for an account.
 func HandleListCalendars(store store.Storer, logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accountIDStr := chi.URLParam(r, "accountId")
@@ -223,7 +223,7 @@ func HandleListCalendars(store store.Storer, logger *zap.Logger) http.HandlerFun
 	}
 }
 
-// handleGetAggregatedEvents haalt events op van meerdere accounts/calendars
+// HandleGetAggregatedEvents retrieves events across accounts/calendars.
 func HandleGetAggregatedEvents(store store.Storer, logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID, err := common.GetUserIDFromContext(r.Context())
