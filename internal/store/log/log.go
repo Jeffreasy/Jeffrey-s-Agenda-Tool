@@ -74,7 +74,11 @@ func (s *LogStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, trigg
 }
 
 // GetLogsForAccount haalt de meest recente logs op voor een account.
-func (s *LogStore) GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error) {
+func (s *LogStore) GetLogsForAccount(
+	ctx context.Context,
+	accountID uuid.UUID,
+	limit int,
+) ([]domain.AutomationLog, error) {
 	query := `
 	   SELECT id, connected_account_id, rule_id, timestamp, status,
 	          trigger_details, action_details, error_message

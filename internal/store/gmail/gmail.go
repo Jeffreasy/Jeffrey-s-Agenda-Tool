@@ -110,8 +110,11 @@ func (s *GmailStore) CreateGmailAutomationRule(ctx context.Context, arg CreateGm
 	return rule, nil
 }
 
-// GetGmailRulesForAccount gets all Gmail automation rules for an account
-func (s *GmailStore) GetGmailRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.GmailAutomationRule, error) {
+// GetGmailRulesForAccount gets all Gmail automation rules for an account.
+func (s *GmailStore) GetGmailRulesForAccount(
+	ctx context.Context,
+	accountID uuid.UUID,
+) ([]domain.GmailAutomationRule, error) {
 	query := `
 		SELECT id, connected_account_id, name, description, is_active, trigger_type,
 		       trigger_conditions, action_type, action_params, priority, created_at, updated_at
@@ -294,8 +297,13 @@ func (s *GmailStore) StoreGmailThread(ctx context.Context, arg StoreGmailThreadP
 	return nil
 }
 
-// UpdateGmailMessageStatus updates the status of a Gmail message
-func (s *GmailStore) UpdateGmailMessageStatus(ctx context.Context, accountID uuid.UUID, messageID string, status domain.GmailMessageStatus) error {
+// UpdateGmailMessageStatus updates the status of a Gmail message.
+func (s *GmailStore) UpdateGmailMessageStatus(
+	ctx context.Context,
+	accountID uuid.UUID,
+	messageID string,
+	status domain.GmailMessageStatus,
+) error {
 	query := `
 		UPDATE gmail_messages
 		SET status = $1, updated_at = now()
@@ -314,8 +322,12 @@ func (s *GmailStore) UpdateGmailMessageStatus(ctx context.Context, accountID uui
 	return nil
 }
 
-// GetGmailMessagesForAccount gets recent Gmail messages for an account
-func (s *GmailStore) GetGmailMessagesForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.GmailMessage, error) {
+// GetGmailMessagesForAccount gets recent Gmail messages for an account.
+func (s *GmailStore) GetGmailMessagesForAccount(
+	ctx context.Context,
+	accountID uuid.UUID,
+	limit int,
+) ([]domain.GmailMessage, error) {
 	query := `
 		SELECT id, connected_account_id, gmail_message_id, gmail_thread_id, subject, sender,
 		       recipients, cc_recipients, bcc_recipients, snippet, status, is_starred,
@@ -355,8 +367,13 @@ func (s *GmailStore) GetGmailMessagesForAccount(ctx context.Context, accountID u
 	return messages, nil
 }
 
-// UpdateGmailSyncState updates the Gmail sync state for an account
-func (s *GmailStore) UpdateGmailSyncState(ctx context.Context, accountID uuid.UUID, historyID string, lastSync time.Time) error {
+// UpdateGmailSyncState updates the Gmail sync state for an account.
+func (s *GmailStore) UpdateGmailSyncState(
+	ctx context.Context,
+	accountID uuid.UUID,
+	historyID string,
+	lastSync time.Time,
+) error {
 	query := `
 		UPDATE connected_accounts
 		SET gmail_history_id = $1, gmail_last_sync = $2, updated_at = now()
@@ -371,8 +388,11 @@ func (s *GmailStore) UpdateGmailSyncState(ctx context.Context, accountID uuid.UU
 	return nil
 }
 
-// GetGmailSyncState gets the Gmail sync state for an account
-func (s *GmailStore) GetGmailSyncState(ctx context.Context, accountID uuid.UUID) (historyID *string, lastSync *time.Time, err error) {
+// GetGmailSyncState gets the Gmail sync state for an account.
+func (s *GmailStore) GetGmailSyncState(
+	ctx context.Context,
+	accountID uuid.UUID,
+) (historyID *string, lastSync *time.Time, err error) {
 	query := `
 		SELECT gmail_history_id, gmail_last_sync
 		FROM connected_accounts

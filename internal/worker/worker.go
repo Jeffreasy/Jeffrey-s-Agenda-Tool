@@ -104,34 +104,66 @@ func (w *Worker) processAccount(ctx context.Context, acc domain.ConnectedAccount
 		// De store heeft de 'revoked' status al ingesteld,
 		// we hoeven hier alleen nog maar te loggen en stoppen.
 		if errors.Is(err, store.ErrTokenRevoked) {
-			w.logger.Warn("account token revoked, stopping processing", zap.String("account_id", acc.ID.String()), zap.String("component", "worker"))
+			w.logger.Warn(
+				"account token revoked, stopping processing",
+				zap.String("account_id", acc.ID.String()),
+				zap.String("component", "worker"),
+			)
 		} else {
-			w.logger.Error("failed to get valid token for account", zap.Error(err), zap.String("account_id", acc.ID.String()), zap.String("component", "worker"))
+			w.logger.Error(
+				"failed to get valid token for account",
+				zap.Error(err),
+				zap.String("account_id", acc.ID.String()),
+				zap.String("component", "worker"),
+			)
 		}
 		return // Stop verwerking voor dit account
 	}
 
 	// 2. Process calendar
 	// AANGEPAST: Gebruik w.logger
-	w.logger.Info("token valid, processing calendar", zap.String("account_id", acc.ID.String()), zap.String("component", "worker"))
+	w.logger.Info(
+		"token valid, processing calendar",
+		zap.String("account_id", acc.ID.String()),
+		zap.String("component", "worker"),
+	)
 	if err := w.calendarProcessor.ProcessEvents(ctx, acc, token); err != nil {
 		// AANGEPAST: Gebruik w.logger
-		w.logger.Error("failed to process calendar events", zap.Error(err), zap.String("account_id", acc.ID.String()), zap.String("component", "worker"))
+		w.logger.Error(
+			"failed to process calendar events",
+			zap.Error(err),
+			zap.String("account_id", acc.ID.String()),
+			zap.String("component", "worker"),
+		)
 	}
 
 	// 2.5. Process Gmail (only if Gmail sync is enabled)
 	if acc.GmailSyncEnabled {
 		// AANGEPAST: Gebruik w.logger
-		w.logger.Info("processing Gmail messages", zap.String("account_id", acc.ID.String()), zap.String("component", "worker"))
+		w.logger.Info(
+			"processing Gmail messages",
+			zap.String("account_id", acc.ID.String()),
+			zap.String("component", "worker"),
+		)
 		if err := w.gmailProcessor.ProcessMessages(ctx, acc, token); err != nil {
 			// AANGEPAST: Gebruik w.logger
-			w.logger.Error("failed to process Gmail messages", zap.Error(err), zap.String("account_id", acc.ID.String()), zap.String("component", "worker"))
+			w.logger.Error(
+				"failed to process Gmail messages",
+				zap.Error(err),
+				zap.String("account_id", acc.ID.String()),
+				zap.String("component", "worker"),
+			)
 		}
 	}
 
 	// 3. Update last_checked
 	if err := w.store.UpdateAccountLastChecked(ctx, acc.ID); err != nil {
 		// AANGEPAST: Gebruik w.logger
-		w.logger.Error("failed to update last_checked timestamp", zap.Error(err), zap.String("account_id", acc.ID.String()), zap.String("component", "worker"))
+		w.logger.Error(
+			"failed to update last_checked timestamp",
+			zap.Error(err),
+			zap.String("account_id", acc.ID.String()),
+			zap.String("component", "worker"),
+		)
 	}
 }

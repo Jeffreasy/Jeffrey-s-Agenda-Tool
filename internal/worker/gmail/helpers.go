@@ -36,7 +36,8 @@ func (gp *GmailProcessor) storeMessageInDB(ctx context.Context, acc domain.Conne
 	}
 
 	isStarred := gp.hasLabel(message.LabelIds, "STARRED")
-	hasAttachments := len(message.Payload.Parts) > 1 || (message.Payload.Body != nil && message.Payload.Body.Size > 0 && len(message.Payload.Parts) > 0)
+	hasAttachments := len(message.Payload.Parts) > 1 ||
+		(message.Payload.Body != nil && message.Payload.Body.Size > 0 && len(message.Payload.Parts) > 0)
 
 	receivedAt := time.Unix(message.InternalDate/1000, 0)
 
@@ -173,7 +174,12 @@ func (gp *GmailProcessor) createReplyRaw(originalMessage *gmail.Message, replyTe
 }
 
 // Logging helpers
-func (gp *GmailProcessor) logGmailAutomationSuccess(ctx context.Context, accountID uuid.UUID, ruleID *uuid.UUID, messageID, threadID, details string) {
+func (gp *GmailProcessor) logGmailAutomationSuccess(
+	ctx context.Context,
+	accountID uuid.UUID,
+	ruleID *uuid.UUID,
+	messageID, threadID, details string,
+) {
 	params := store.CreateLogParams{
 		ConnectedAccountID: accountID,
 		RuleID:             *ruleID,
@@ -184,7 +190,12 @@ func (gp *GmailProcessor) logGmailAutomationSuccess(ctx context.Context, account
 	gp.store.CreateAutomationLog(ctx, params)
 }
 
-func (gp *GmailProcessor) logGmailAutomationFailure(ctx context.Context, accountID uuid.UUID, ruleID *uuid.UUID, messageID, threadID, errorMsg string) {
+func (gp *GmailProcessor) logGmailAutomationFailure(
+	ctx context.Context,
+	accountID uuid.UUID,
+	ruleID *uuid.UUID,
+	messageID, threadID, errorMsg string,
+) {
 	params := store.CreateLogParams{
 		ConnectedAccountID: accountID,
 		RuleID:             *ruleID,

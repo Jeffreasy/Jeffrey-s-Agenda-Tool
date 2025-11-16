@@ -243,7 +243,13 @@ func (cp *CalendarProcessor) ProcessEvents(ctx context.Context, acc domain.Conne
 				log.Printf("[Calendar] ERROR saving success log for rule %s: %v", rule.ID, err)
 			}
 
-			log.Printf("[Calendar] SUCCESS: Created reminder '%s' (ID: %s) for event '%s' (ID: %s)", createdEvent.Summary, createdEvent.Id, event.Summary, event.Id)
+			log.Printf(
+				"[Calendar] SUCCESS: Created reminder '%s' (ID: %s) for event '%s' (ID: %s)",
+				createdEvent.Summary,
+				createdEvent.Id,
+				event.Summary,
+				event.Id,
+			)
 		}
 	}
 

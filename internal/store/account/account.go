@@ -462,7 +462,11 @@ func (s *AccountStore) GetValidTokenForAccount(ctx context.Context, accountID uu
 		return nil, fmt.Errorf("kon ververst token niet opslaan: %w", err)
 	}
 
-	s.logger.Info("token successfully refreshed and saved", zap.String("account_id", acc.ID.String()), zap.String("component", "store"))
+	s.logger.Info(
+		"token successfully refreshed and saved",
+		zap.String("account_id", acc.ID.String()),
+		zap.String("component", "store"),
+	)
 
 	// 6. Geef het nieuwe, geldige token terug
 	return newToken, nil
