@@ -3,21 +3,22 @@ package main
 import (
 	"context"
 	// _ "embed" // <-- VERWIJDERD
-	"log"
+
 	"net/http"
 	"os"
-	"strings"
 
 	// Interne packages
 	"agenda-automator-api/internal/api"
 	"agenda-automator-api/internal/database"
+	"agenda-automator-api/internal/logger"
 	"agenda-automator-api/internal/store"
 	"agenda-automator-api/internal/worker"
 
-	"agenda-automator-api/db/migrations" // <-- TOEGEVOEGD
+	// <-- TOEGEVOEGD
 
 	// Externe packages
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -30,25 +31,24 @@ func main() {
 	// 1. Laad configuratie (.env)
 	_ = godotenv.Load()
 
-	// 2. Maak verbinding met de Database
-	pool, err := database.ConnectDB()
+	// 1.5. Initialiseer logger
+	log, err := logger.NewLogger()
 	if err != nil {
-		log.Fatalf("Could not connect to the database: %v", err)
+		log.Fatal("Could not initialize logger", zap.Error(err))
+	}
+	defer log.Sync()
+
+	// 2. Maak verbinding met de Database
+	pool, err := database.ConnectDB(log)
+	if err != nil {
+		log.Fatal("could not connect to the database", zap.Error(err))
 	}
 	defer pool.Close()
 
 	// -----------------------------------------------------
 	// AANGEPAST: Stap 2.5 - Voer migraties uit
-	run := os.Getenv("RUN_MIGRATIONS")
-	if strings.ToLower(run) == "true" {
-		log.Println("Running database migrations...")
-		// Gebruik de variabele uit de 'migrations' package:
-		if _, err := pool.Exec(context.Background(), migrations.InitialSchemaUp); err != nil {
-			log.Fatalf("Database migrations failed: %v", err)
-		}
-		log.Println("Database migrations applied successfully.")
-	} else {
-		log.Println("Skipping migrations (RUN_MIGRATIONS is not 'true')")
+	if err := database.RunMigrations(context.Background(), pool, log); err != nil {
+		log.Fatal("database migrations failed", zap.Error(err))
 	}
 	// -----------------------------------------------------
 
@@ -58,7 +58,7 @@ func main() {
 	redirectURL := os.Getenv("OAUTH_REDIRECT_URL") // e.g. http://localhost:8080/api/v1/auth/google/callback
 
 	if clientID == "" || clientSecret == "" || redirectURL == "" {
-		log.Fatalf("GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, of OAUTH_REDIRECT_URL is niet ingesteld in .env")
+		log.Fatal("Google OAuth configuration missing", zap.String("component", "main"))
 	}
 
 	googleOAuthConfig := &oauth2.Config{
@@ -67,7 +67,24 @@ func main() {
 		RedirectURL:  redirectURL,
 		Endpoint:     google.Endpoint,
 		Scopes: []string{
+			// Calendar APIs
+			"https://www.googleapis.com/auth/calendar",
 			"https://www.googleapis.com/auth/calendar.events",
+
+			// Gmail APIs - Full access for comprehensive email management
+			"https://www.googleapis.com/auth/gmail.modify",   // Full Gmail access (read, send, delete, modify)
+			"https://www.googleapis.com/auth/gmail.compose",  // Create drafts
+			"https://www.googleapis.com/auth/gmail.insert",   // Insert messages
+			"https://www.googleapis.com/auth/gmail.labels",   // Manage labels
+			"https://www.googleapis.com/auth/gmail.metadata", // Metadata access
+
+			// Google Drive API - for attachments
+			"https://www.googleapis.com/auth/drive.file", // Access to files created/modified by the app
+
+			// Google People API - for contacts
+			"https://www.googleapis.com/auth/contacts.readonly", // Read contacts
+
+			// User info
 			"https://www.googleapis.com/auth/userinfo.email",
 			"https://www.googleapis.com/auth/userinfo.profile",
 		},
@@ -75,19 +92,19 @@ func main() {
 
 	// 4. Initialiseer de 'Store' Laag (AANGEPAST)
 	// De store heeft nu de oauth config nodig om zelf tokens te verversen.
-	dbStore := store.NewStore(pool, googleOAuthConfig)
+	dbStore := store.NewStore(pool, googleOAuthConfig, log)
 
 	// 5. Initialiseer de Worker (geef de store mee)
-	appWorker, err := worker.NewWorker(dbStore)
+	appWorker, err := worker.NewWorker(dbStore, log)
 	if err != nil {
-		log.Fatalf("Could not initialize worker: %v", err)
+		log.Fatal("could not initialize worker", zap.Error(err))
 	}
 
 	// 6. Start de Worker in de achtergrond
 	appWorker.Start()
 
-	// 7. Initialiseer de API Server (geef de store en config mee)
-	apiServer := api.NewServer(dbStore, googleOAuthConfig)
+	// 7. Initialiseer de API Server (geef de store, logger en config mee)
+	apiServer := api.NewServer(dbStore, log, googleOAuthConfig)
 
 	// 8. Start de HTTP Server (op de voorgrond)
 	port := os.Getenv("API_PORT")
@@ -95,9 +112,9 @@ func main() {
 		port = "8080" // Default poort
 	}
 
-	log.Printf("Application starting API server on port %s...", port)
+	log.Info("starting API server", zap.String("port", port), zap.String("component", "main"))
 
 	if err := http.ListenAndServe(":"+port, apiServer.Router); err != nil {
-		log.Fatalf("Could not start server: %v", err)
+		log.Fatal("could not start server", zap.Error(err))
 	}
 }

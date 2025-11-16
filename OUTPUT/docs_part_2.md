@@ -1,3 +1,10 @@
+# Documentation Part 2
+
+Generated at: 2025-11-15T20:45:21+01:00
+
+## internal\api\handlers.go
+
+```go
 package api
 
 import (
@@ -650,6 +657,7 @@ func (s *Server) handleGetCalendarEvents() http.HandlerFunc {
 
 		client, err := s.getCalendarClient(ctx, account)
 		if err != nil {
+			log.Printf("HANDLER ERROR [getCalendarClient]: %v", err)
 			WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren")
 			return
 		}
@@ -662,6 +670,7 @@ func (s *Server) handleGetCalendarEvents() http.HandlerFunc {
 			MaxResults(250). // <-- VOEG DIT LIMIET TOE
 			Do()
 		if err != nil {
+			log.Printf("HANDLER ERROR [client.Events.List]: %v", err)
 			WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon events niet ophalen: %v", err))
 			return
 		}
@@ -738,36 +747,385 @@ func (s *Server) handleGetAggregatedEvents() http.HandlerFunc {
 	}
 }
 
+// --- HEALTH CHECK HANDLER ---
+
+// handleHealth checks if the API server is running and healthy.
+func (s *Server) handleHealth() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	}
+}
+
 // --- HELPER FUNCTIE (NIEUW) ---
 
 // getCalendarClient initialiseert een Google Calendar client met token refresh
 func (s *Server) getCalendarClient(ctx context.Context, account domain.ConnectedAccount) (*calendar.Service, error) {
-	token := &oauth2.Token{
-		AccessToken:  string(account.AccessToken),
-		RefreshToken: string(account.RefreshToken),
-		Expiry:       account.TokenExpiry,
-		TokenType:    "Bearer",
+
+	// BELANGRIJK: Gebruik context.Background() voor externe calls,
+	// NIET de 'ctx' van de request, om header-vervuiling te voorkomen.
+	cleanCtx := context.Background()
+
+	// 1. Haal het token op (deze functie gebruikt de DB context 'ctx', maar 'cleanCtx' voor de refresh)
+	token, err := s.store.GetValidTokenForAccount(ctx, account.ID)
+	if err != nil {
+		log.Printf("HANDLER ERROR [getCalendarClient]: %v", err)
+		return nil, fmt.Errorf("kon geen geldig token voor account ophalen: %w", err)
 	}
 
-	// Refresh token als verlopen
-	if !token.Valid() {
-		newToken, err := s.googleOAuthConfig.TokenSource(ctx, token).Token()
-		if err != nil {
-			return nil, err
-		}
-		// Update token in DB
-		updateParams := store.UpdateConnectedAccountTokenParams{
-			ID:           account.ID,
-			AccessToken:  []byte(newToken.AccessToken),
-			RefreshToken: []byte(newToken.RefreshToken),
-			TokenExpiry:  newToken.Expiry,
-		}
-		if err := s.store.UpdateConnectedAccountToken(ctx, updateParams); err != nil {
-			return nil, err
-		}
-		token = newToken
-	}
+	// 2. Maak de client en service aan met de schone context
+	client := oauth2.NewClient(cleanCtx, oauth2.StaticTokenSource(token))
 
-	client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
-	return calendar.NewService(ctx, option.WithHTTPClient(client))
+	return calendar.NewService(cleanCtx, option.WithHTTPClient(client))
 }
+
+```
+
+## internal\domain\models.go
+
+```go
+package domain
+
+import (
+	"encoding/json" // Zorg dat deze import er is
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// --- ENUM Types ---
+type ProviderType string
+
+const (
+	ProviderGoogle    ProviderType = "google"
+	ProviderMicrosoft ProviderType = "microsoft"
+)
+
+type AccountStatus string
+
+const (
+	StatusActive  AccountStatus = "active"
+	StatusRevoked AccountStatus = "revoked"
+	StatusError   AccountStatus = "error"
+	StatusPaused  AccountStatus = "paused"
+)
+
+type AutomationLogStatus string
+
+const (
+	LogPending AutomationLogStatus = "pending"
+	LogSuccess AutomationLogStatus = "success"
+	LogFailure AutomationLogStatus = "failure"
+	LogSkipped AutomationLogStatus = "skipped"
+)
+
+// --- Tabel Structs (met JSON tags) ---
+
+type User struct {
+	ID        uuid.UUID `db:"id"        json:"id"`
+	Email     string    `db:"email"     json:"email"`
+	Name      *string   `db:"name"      json:"name,omitempty"` // AANGEPAST: van 'string' naar '*string'
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type ConnectedAccount struct {
+	ID             uuid.UUID     `db:"id"                 json:"id"`
+	UserID         uuid.UUID     `db:"user_id"            json:"user_id"`
+	Provider       ProviderType  `db:"provider"           json:"provider"`
+	Email          string        `db:"email"              json:"email"`
+	ProviderUserID string        `db:"provider_user_id"   json:"provider_user_id"`
+	AccessToken    []byte        `db:"access_token"       json:"-"`
+	RefreshToken   []byte        `db:"refresh_token"      json:"-"`
+	TokenExpiry    time.Time     `db:"token_expiry"       json:"token_expiry"`
+	Scopes         []string      `db:"scopes"             json:"scopes"`
+	Status         AccountStatus `db:"status"             json:"status"`
+	CreatedAt      time.Time     `db:"created_at"         json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at"         json:"updated_at"`
+	LastChecked    *time.Time    `db:"last_checked"       json:"last_checked"`
+}
+
+type AutomationRule struct {
+	ID                 uuid.UUID       `db:"id"                     json:"id"`
+	ConnectedAccountID uuid.UUID       `db:"connected_account_id"   json:"connected_account_id"`
+	Name               string          `db:"name"                   json:"name"`
+	IsActive           bool            `db:"is_active"              json:"is_active"`
+	TriggerConditions  json.RawMessage `db:"trigger_conditions"     json:"trigger_conditions"`
+	ActionParams       json.RawMessage `db:"action_params"          json:"action_params"`
+	CreatedAt          time.Time       `db:"created_at"             json:"created_at"`
+	UpdatedAt          time.Time       `db:"updated_at"             json:"updated_at"`
+}
+
+type AutomationLog struct {
+	ID                 int64               `db:"id"                     json:"id"`
+	ConnectedAccountID uuid.UUID           `db:"connected_account_id"   json:"connected_account_id"`
+	RuleID             uuid.UUID           `db:"rule_id"                json:"rule_id"`
+	Timestamp          time.Time           `db:"timestamp"              json:"timestamp"`
+	Status             AutomationLogStatus `db:"status"                 json:"status"`
+	TriggerDetails     json.RawMessage     `db:"trigger_details"        json:"trigger_details"`
+	ActionDetails      json.RawMessage     `db:"action_details"         json:"action_details"`
+	ErrorMessage       string              `db:"error_message"          json:"error_message"`
+}
+
+// ... rest van het bestand (TriggerConditions, ActionParams, etc.) ...
+// (Deze hoeven niet aangepast te worden)
+type TriggerConditions struct {
+	SummaryEquals    string   `json:"summary_equals,omitempty"`
+	SummaryContains  []string `json:"summary_contains,omitempty"`
+	LocationContains []string `json:"location_contains,omitempty"`
+}
+
+type ActionParams struct {
+	OffsetMinutes int    `json:"offset_minutes"`
+	NewEventTitle string `json:"new_event_title"`
+	DurationMin   int    `json:"duration_min"`
+}
+
+type TriggerLogDetails struct {
+	GoogleEventID  string    `json:"google_event_id"`
+	TriggerSummary string    `json:"trigger_summary"`
+	TriggerTime    time.Time `json:"trigger_time"`
+}
+
+type ActionLogDetails struct {
+	CreatedEventID      string    `json:"created_event_id"`
+	CreatedEventSummary string    `json:"created_event_summary"`
+	ReminderTime        time.Time `json:"reminder_time"`
+}
+
+type Event struct {
+	ID          string    `json:"id"`
+	Summary     string    `json:"summary"`
+	Description string    `json:"description"`
+	Start       time.Time `json:"start"`
+	End         time.Time `json:"end"`
+	CalendarId  string    `json:"calendarId"`
+}
+
+```
+
+## cmd\server\main.go
+
+```go
+package main
+
+import (
+	"context"
+	// _ "embed" // <-- VERWIJDERD
+	"log"
+	"net/http"
+	"os"
+	"strings"
+
+	// Interne packages
+	"agenda-automator-api/internal/api"
+	"agenda-automator-api/internal/database"
+	"agenda-automator-api/internal/store"
+	"agenda-automator-api/internal/worker"
+
+	"agenda-automator-api/db/migrations" // <-- TOEGEVOEGD
+
+	// Externe packages
+	"github.com/joho/godotenv"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+)
+
+// VERWIJDERD:
+// //go:embed"../db/migrations/000001_initial_schema.up.sql"
+// var migrationFile string
+
+func main() {
+	// 1. Laad configuratie (.env)
+	_ = godotenv.Load()
+
+	// 2. Maak verbinding met de Database
+	pool, err := database.ConnectDB()
+	if err != nil {
+		log.Fatalf("Could not connect to the database: %v", err)
+	}
+	defer pool.Close()
+
+	// -----------------------------------------------------
+	// AANGEPAST: Stap 2.5 - Voer migraties uit
+	run := os.Getenv("RUN_MIGRATIONS")
+	if strings.ToLower(run) == "true" {
+		log.Println("Running database migrations...")
+		// Gebruik de variabele uit de 'migrations' package:
+		if _, err := pool.Exec(context.Background(), migrations.InitialSchemaUp); err != nil {
+			log.Fatalf("Database migrations failed: %v", err)
+		}
+		log.Println("Database migrations applied successfully.")
+	} else {
+		log.Println("Skipping migrations (RUN_MIGRATIONS is not 'true')")
+	}
+	// -----------------------------------------------------
+
+	// 3. Initialiseer de Gedeelde OAuth2 Config
+	clientID := os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
+	clientSecret := os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+	redirectURL := os.Getenv("OAUTH_REDIRECT_URL") // e.g. http://localhost:8080/api/v1/auth/google/callback
+
+	if clientID == "" || clientSecret == "" || redirectURL == "" {
+		log.Fatalf("GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, of OAUTH_REDIRECT_URL is niet ingesteld in .env")
+	}
+
+	googleOAuthConfig := &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RedirectURL:  redirectURL,
+		Endpoint:     google.Endpoint,
+		Scopes: []string{
+			"https://www.googleapis.com/auth/calendar.events",
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+		},
+	}
+
+	// 4. Initialiseer de 'Store' Laag (AANGEPAST)
+	// De store heeft nu de oauth config nodig om zelf tokens te verversen.
+	dbStore := store.NewStore(pool, googleOAuthConfig)
+
+	// 5. Initialiseer de Worker (geef de store mee)
+	appWorker, err := worker.NewWorker(dbStore)
+	if err != nil {
+		log.Fatalf("Could not initialize worker: %v", err)
+	}
+
+	// 6. Start de Worker in de achtergrond
+	appWorker.Start()
+
+	// 7. Initialiseer de API Server (geef de store en config mee)
+	apiServer := api.NewServer(dbStore, googleOAuthConfig)
+
+	// 8. Start de HTTP Server (op de voorgrond)
+	port := os.Getenv("API_PORT")
+	if port == "" {
+		port = "8080" // Default poort
+	}
+
+	log.Printf("Application starting API server on port %s...", port)
+
+	if err := http.ListenAndServe(":"+port, apiServer.Router); err != nil {
+		log.Fatalf("Could not start server: %v", err)
+	}
+}
+
+```
+
+## go.mod
+
+```go-mod
+module agenda-automator-api
+
+go 1.24.0
+
+toolchain go1.24.10
+
+require (
+	github.com/go-chi/chi/v5 v5.2.3
+	github.com/go-chi/cors v1.2.2
+	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/google/uuid v1.6.0
+	github.com/jackc/pgx/v5 v5.7.6
+	github.com/joho/godotenv v1.5.1
+	golang.org/x/oauth2 v0.33.0
+	google.golang.org/api v0.256.0
+)
+
+require (
+	cloud.google.com/go/auth v0.17.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
+	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/google/s2a-go v0.1.9 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
+	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
+	go.opentelemetry.io/otel v1.37.0 // indirect
+	go.opentelemetry.io/otel/metric v1.37.0 // indirect
+	go.opentelemetry.io/otel/trace v1.37.0 // indirect
+	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/net v0.46.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251103181224-f26f9409b101 // indirect
+	google.golang.org/grpc v1.76.0 // indirect
+	google.golang.org/protobuf v1.36.10 // indirect
+)
+
+```
+
+## .env.example
+
+```bash
+//---------------------------------------------------
+// 1. APPLICATIE CONFIGURATIE
+//---------------------------------------------------
+APP_ENV=development
+
+API_PORT=8080
+
+//---------------------------------------------------
+// 2. DATABASE (POSTGRES)
+//---------------------------------------------------
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=Bootje12
+POSTGRES_DB=agenda_automator
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5433
+
+DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
+
+//---------------------------------------------------
+// 3. CACHE (REDIS)
+//---------------------------------------------------
+// Verwijderd, want niet gebruikt
+
+//---------------------------------------------------
+// 4. BEVEILIGING & ENCRYPTIE
+//---------------------------------------------------
+ENCRYPTION_KEY="IJvSU0jEVrm3CBNzdAMoDRT9sQlnZcea"
+
+//---------------------------------------------------
+// 5. OAUTH CLIENTS (Google)
+//---------------------------------------------------
+CLIENT_BASE_URL="http://localhost:3000"
+
+OAUTH_REDIRECT_URL="http://localhost:8080/api/v1/auth/google/callback"
+
+GOOGLE_OAUTH_CLIENT_ID="YOUR-CLIENT-ID-HERE.apps.googleusercontent.com"
+GOOGLE_OAUTH_CLIENT_SECRET="YOUR-CLIENT-SECRET-HERE"
+
+// NIEUW: Voor dynamic CORS
+ALLOWED_ORIGINS=http://localhost:3000,https://prod.com
+```
+
+## db\migrations\000001_initial_schema.down.sql
+
+```sql
+-- Rollback initial schema migration
+
+DROP INDEX IF EXISTS idx_automation_logs_rule_id;
+DROP INDEX IF EXISTS idx_automation_logs_account_id_timestamp;
+DROP TABLE IF EXISTS automation_logs;
+
+DROP INDEX IF EXISTS idx_automation_rules_account_id;
+DROP TABLE IF EXISTS automation_rules;
+
+DROP INDEX IF EXISTS idx_connected_accounts_user_id;
+DROP TABLE IF EXISTS connected_accounts;
+
+DROP TABLE IF EXISTS users;
+
+DROP TYPE IF EXISTS automation_log_status;
+DROP TYPE IF EXISTS account_status;
+DROP TYPE IF EXISTS provider_type;
+```
+

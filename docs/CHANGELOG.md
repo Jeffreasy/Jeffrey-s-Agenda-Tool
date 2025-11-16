@@ -8,45 +8,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Real-time shift monitoring system** with 30-second intervals
-- **Comprehensive calendar coverage** for entire next year
-- **Intelligent shift classification**: Automatic "Vroeg/Laat" and "A/R" team detection
-- **Automated reminder creation** with smart titles ("Vroeg A", "Laat R", etc.)
+- **Automated calendar processing system** with 2-minute intervals
+- **Comprehensive calendar coverage** for all events (1970-2100)
+- **Flexible automation rules** with JSONB-based trigger conditions and actions
+- **Full calendar CRUD operations** via REST API (create, read, update, delete events)
+- **Aggregated calendar events** fetching from multiple accounts/calendars
+- **Comprehensive automation logging** with success/failure/skipped status tracking
+- **JWT-based authentication** with 7-day token expiration
+- **Backend-driven OAuth 2.0 flow** with CSRF protection
+- **Complete REST API** with 16+ endpoints for full application functionality
 - **Parallel account processing** for multiple Google Calendar accounts
-- **Flexible automation rules** with JSONB configuration
-- **New API endpoint**: `POST /api/v1/rules` for automation rule management
-- Backend-driven OAuth 2.0 flow with CSRF protection
-- New OAuth endpoints: `/api/v1/auth/google/login` and `/api/v1/auth/google/callback`
-- Automatic user creation/update during OAuth flow
-- Secure token storage with AES-GCM encryption
-- Google user profile fetching and account linking
-- Initial project setup and structure
-- REST API with Chi router
-- PostgreSQL database integration with migrations
-- Background worker for automation tasks
+- **Token refresh automation** with secure encrypted storage
+- **User management** via Google OAuth integration
+- **Connected accounts management** with status tracking
+- **Rule management** (CRUD operations for automation rules)
+- **Calendar list endpoint** (`GET /accounts/{accountId}/calendars`) for retrieving all accessible calendars
+- **Multi-calendar support** in frontend calendar view with fallback calendar IDs
+- **Health check endpoint** for monitoring
+- PostgreSQL database with comprehensive schema
 - Docker Compose setup for local development
 - Google Calendar API integration
-- User and connected accounts management
-- Comprehensive documentation
+- Comprehensive documentation suite
 
 ### Changed
-- **Worker frequency**: Upgraded from 5-minute to 30-second real-time monitoring
-- **Monitoring window**: Expanded from 24 hours to 1 year comprehensive coverage
-- **Database queries**: Removed `last_checked` filtering for continuous monitoring
-- OAuth flow completely refactored from frontend-driven to backend-driven
-- OAuth configuration centralized in main.go and injected into components
-- Updated all documentation to reflect new OAuth architecture
-- Legacy connected accounts endpoint marked as deprecated
+- **Worker frequency**: Changed from 5-minute to 2-minute intervals for regular processing
+- **Monitoring scope**: Processes all historical and future events (1970-2100) instead of limited windows
+- **Database design**: Enhanced with JSONB fields for flexible rule configuration
+- **OAuth flow**: Completely refactored from frontend-driven to secure backend-driven implementation
+- **API architecture**: Expanded from basic endpoints to comprehensive REST API with authentication
+- **Worker logic**: Enhanced with deduplication, comprehensive logging, and flexible rule processing
 
 ### Performance
-- **30x faster detection**: Changes detected within 30 seconds instead of 5 minutes
 - **Parallel processing**: Multiple accounts processed simultaneously
-- **Comprehensive coverage**: 1-year monitoring window vs previous limited scope
+- **Efficient querying**: Optimized database operations with proper indexing
+- **Token management**: Automated refresh prevents authentication failures
+- **Comprehensive coverage**: Processes unlimited historical and future events
 
 ### Security
-- Implemented CSRF protection for OAuth flow
-- Backend now handles all OAuth token exchanges securely
-- Enhanced security by removing token handling from frontend
+- **JWT authentication**: Secure token-based API access
+- **CSRF protection**: State tokens for OAuth flow security
+- **Encrypted storage**: AES-GCM encryption for all sensitive OAuth tokens
+- **Backend OAuth handling**: Secure server-side token exchange
 
 ## [1.0.0] - 2025-11-11
 

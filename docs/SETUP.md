@@ -180,24 +180,25 @@ go run ./cmd/server
 
 **Expected Output:**
 ```
-2025/11/12 14:00:00 Successfully connected to database.
-2025/11/12 14:00:00 Starting worker...
-2025/11/12 14:00:00 Application starting API server on port 8080...
-2025/11/12 14:00:00 [Worker] Running work cycle...
-2025/11/12 14:00:00 [Worker] Found 0 active accounts to check.
+2025/11/15 19:00:00 Successfully connected to database.
+2025/11/15 19:00:00 Starting worker...
+2025/11/15 19:00:00 Application starting API server on port 8080...
+2025/11/15 19:00:00 [Worker] Running work cycle...
+2025/11/15 19:00:00 [Worker] Found 0 active accounts to check.
 ```
 
-### Real-Time Monitoring Features
+### Automation Processing Features
 
-The application now includes **real-time shift monitoring** with the following capabilities:
+The application includes **automated calendar processing** with the following capabilities:
 
-- **Monitoring Frequency:** Every 30 seconds (real-time detection)
-- **Coverage Window:** 1 year ahead (comprehensive future planning)
-- **Automatic Shift Detection:** Recognizes "Dienst" events
-- **Smart Classification:**
-  - **Time-based:** `< 12:00` = "Vroeg", `≥ 12:00` = "Laat"
-  - **Location-based:** `"aa"` or `"appartementen"` = Team "A", others = Team "R"
-- **Reminder Creation:** Automatic reminders 1 hour before shifts
+- **Processing Frequency:** Every 2 minutes (regular batch processing)
+- **Coverage Window:** All events from 1970-2100 (comprehensive historical and future processing)
+- **Flexible Automation Rules:** User-configurable JSONB-based trigger conditions and actions
+- **Smart Processing:**
+  - **Trigger Matching:** Summary text matching, location filtering
+  - **Action Execution:** Configurable reminder creation with custom titles and timing
+  - **Deduplication:** Prevents duplicate actions via comprehensive logging
+- **Reminder Creation:** Automatic event creation based on rule configurations
 - **Parallel Processing:** Handles multiple Google accounts simultaneously
 
 ### Verify Installation

@@ -1,24 +1,37 @@
 package store
 
 import (
-	"agenda-automator-api/internal/crypto"
 	"agenda-automator-api/internal/domain"
+	"agenda-automator-api/internal/store/account"
+	"agenda-automator-api/internal/store/gmail"
+	"agenda-automator-api/internal/store/log"
+	"agenda-automator-api/internal/store/rule"
+	"agenda-automator-api/internal/store/user"
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
 
-// ErrTokenRevoked wordt gegooid als de gebruiker de toegang heeft ingetrokken.
-var ErrTokenRevoked = fmt.Errorf("token access has been revoked by user")
+// Re-export parameter structs for backward compatibility
+type (
+	UpsertConnectedAccountParams      = account.UpsertConnectedAccountParams
+	UpdateAccountTokensParams         = account.UpdateAccountTokensParams
+	UpdateConnectedAccountTokenParams = account.UpdateConnectedAccountTokenParams
+	CreateAutomationRuleParams        = rule.CreateAutomationRuleParams
+	UpdateRuleParams                  = rule.UpdateRuleParams
+	CreateLogParams                   = log.CreateLogParams
+	CreateGmailAutomationRuleParams   = gmail.CreateGmailAutomationRuleParams
+	UpdateGmailRuleParams             = gmail.UpdateGmailRuleParams
+	StoreGmailMessageParams           = gmail.StoreGmailMessageParams
+	StoreGmailThreadParams            = gmail.StoreGmailThreadParams
+)
+
+// Re-export error for backward compatibility
+var ErrTokenRevoked = account.ErrTokenRevoked
 
 // Storer is de interface voor al onze database-interacties.
 type Storer interface {
@@ -53,19 +66,42 @@ type Storer interface {
 
 	// UpdateConnectedAccountToken update access/refresh token
 	UpdateConnectedAccountToken(ctx context.Context, params UpdateConnectedAccountTokenParams) error
+
+	// Gmail-specific methods
+	CreateGmailAutomationRule(ctx context.Context, arg CreateGmailAutomationRuleParams) (domain.GmailAutomationRule, error)
+	GetGmailRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.GmailAutomationRule, error)
+	UpdateGmailRule(ctx context.Context, arg UpdateGmailRuleParams) (domain.GmailAutomationRule, error)
+	DeleteGmailRule(ctx context.Context, ruleID uuid.UUID) error
+	ToggleGmailRuleStatus(ctx context.Context, ruleID uuid.UUID) (domain.GmailAutomationRule, error)
+
+	// Gmail message storage
+	StoreGmailMessage(ctx context.Context, arg StoreGmailMessageParams) error
+	StoreGmailThread(ctx context.Context, arg StoreGmailThreadParams) error
+	UpdateGmailMessageStatus(ctx context.Context, accountID uuid.UUID, messageID string, status domain.GmailMessageStatus) error
+	GetGmailMessagesForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.GmailMessage, error)
+
+	// Gmail sync tracking
+	UpdateGmailSyncState(ctx context.Context, accountID uuid.UUID, historyID string, lastSync time.Time) error
+	GetGmailSyncState(ctx context.Context, accountID uuid.UUID) (historyID *string, lastSync *time.Time, err error)
 }
 
 // DBStore implementeert de Storer interface.
 type DBStore struct {
-	pool              *pgxpool.Pool
-	googleOAuthConfig *oauth2.Config // Nodig om tokens te verversen
+	userStore    *user.UserStore
+	accountStore *account.AccountStore
+	ruleStore    *rule.RuleStore
+	logStore     *log.LogStore
+	gmailStore   *gmail.GmailStore
 }
 
 // NewStore maakt een nieuwe DBStore
-func NewStore(pool *pgxpool.Pool, oauthCfg *oauth2.Config) Storer {
+func NewStore(pool *pgxpool.Pool, oauthCfg *oauth2.Config, logger *zap.Logger) Storer {
 	return &DBStore{
-		pool:              pool,
-		googleOAuthConfig: oauthCfg,
+		userStore:    user.NewUserStore(pool),
+		accountStore: account.NewAccountStore(pool, oauthCfg, logger),
+		ruleStore:    rule.NewRuleStore(pool),
+		logStore:     log.NewLogStore(pool),
+		gmailStore:   gmail.NewGmailStore(pool, logger),
 	}
 }
 
@@ -73,828 +109,190 @@ func NewStore(pool *pgxpool.Pool, oauthCfg *oauth2.Config) Storer {
 
 // CreateUser maakt een nieuwe gebruiker aan in de database
 func (s *DBStore) CreateUser(ctx context.Context, email, name string) (domain.User, error) {
-	query := `
-    INSERT INTO users (email, name)
-    VALUES ($1, $2)
-    ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
-    RETURNING id, email, name, created_at, updated_at;
-    `
-
-	row := s.pool.QueryRow(ctx, query, email, name)
-
-	var u domain.User
-	err := row.Scan(
-		&u.ID,
-		&u.Email,
-		&u.Name,
-		&u.CreatedAt,
-		&u.UpdatedAt,
-	)
-
-	if err != nil {
-		return domain.User{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return u, nil
+	return s.userStore.CreateUser(ctx, email, name)
 }
 
 // GetUserByID haalt een gebruiker op basis van ID.
 func (s *DBStore) GetUserByID(ctx context.Context, userID uuid.UUID) (domain.User, error) {
-	query := `SELECT id, email, name, created_at, updated_at FROM users WHERE id = $1`
-	row := s.pool.QueryRow(ctx, query, userID)
-
-	var u domain.User
-	err := row.Scan(
-		&u.ID,
-		&u.Email,
-		&u.Name,
-		&u.CreatedAt,
-		&u.UpdatedAt,
-	)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.User{}, fmt.Errorf("user not found")
-		}
-		return domain.User{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return u, nil
+	return s.userStore.GetUserByID(ctx, userID)
 }
 
 // DeleteUser verwijdert een gebruiker en al zijn data (via ON DELETE CASCADE).
 func (s *DBStore) DeleteUser(ctx context.Context, userID uuid.UUID) error {
-	query := `DELETE FROM users WHERE id = $1`
-	cmdTag, err := s.pool.Exec(ctx, query, userID)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-	if cmdTag.RowsAffected() == 0 {
-		return fmt.Errorf("no user found with ID %s to delete", userID)
-	}
-	return nil
+	return s.userStore.DeleteUser(ctx, userID)
 }
 
 // --- ACCOUNT FUNCTIES ---
 
-// UpsertConnectedAccountParams (aangepast van Create)
-type UpsertConnectedAccountParams struct {
-	UserID         uuid.UUID
-	Provider       domain.ProviderType
-	Email          string
-	ProviderUserID string
-	AccessToken    string
-	RefreshToken   string
-	TokenExpiry    time.Time
-	Scopes         []string
-}
-
 // UpsertConnectedAccount versleutelt de tokens en slaat het account op (upsert)
 func (s *DBStore) UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error) {
-
-	encryptedAccessToken, err := crypto.Encrypt([]byte(arg.AccessToken))
-	if err != nil {
-		return domain.ConnectedAccount{}, fmt.Errorf("could not encrypt access token: %w", err)
-	}
-
-	var encryptedRefreshToken []byte
-	if arg.RefreshToken != "" {
-		encryptedRefreshToken, err = crypto.Encrypt([]byte(arg.RefreshToken))
-		if err != nil {
-			return domain.ConnectedAccount{}, fmt.Errorf("could not encrypt refresh token: %w", err)
-		}
-	}
-
-	query := `
-    INSERT INTO connected_accounts (
-        user_id, provider, email, provider_user_id,
-        access_token, refresh_token, token_expiry, scopes, status
-    ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, 'active'
-    )
-    ON CONFLICT (user_id, provider, provider_user_id) 
-    DO UPDATE SET 
-        access_token = EXCLUDED.access_token, 
-        refresh_token = EXCLUDED.refresh_token, 
-        token_expiry = EXCLUDED.token_expiry, 
-        scopes = EXCLUDED.scopes, 
-        status = 'active', 
-        updated_at = now()
-    RETURNING id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at, last_checked;
-    `
-
-	row := s.pool.QueryRow(ctx, query,
-		arg.UserID,
-		arg.Provider,
-		arg.Email,
-		arg.ProviderUserID,
-		encryptedAccessToken,
-		encryptedRefreshToken,
-		arg.TokenExpiry,
-		arg.Scopes,
-	)
-
-	var acc domain.ConnectedAccount
-	err = row.Scan(
-		&acc.ID,
-		&acc.UserID,
-		&acc.Provider,
-		&acc.Email,
-		&acc.ProviderUserID,
-		&acc.AccessToken,
-		&acc.RefreshToken,
-		&acc.TokenExpiry,
-		&acc.Scopes,
-		&acc.Status,
-		&acc.CreatedAt,
-		&acc.UpdatedAt,
-		&acc.LastChecked,
-	)
-
-	if err != nil {
-		return domain.ConnectedAccount{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return acc, nil
+	return s.accountStore.UpsertConnectedAccount(ctx, arg)
 }
 
 // GetConnectedAccountByID ...
 func (s *DBStore) GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (domain.ConnectedAccount, error) {
-	query := `
-        SELECT id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at, last_checked
-        FROM connected_accounts
-        WHERE id = $1
-    `
-
-	row := s.pool.QueryRow(ctx, query, id)
-
-	var acc domain.ConnectedAccount
-	err := row.Scan(
-		&acc.ID,
-		&acc.UserID,
-		&acc.Provider,
-		&acc.Email,
-		&acc.ProviderUserID,
-		&acc.AccessToken,
-		&acc.RefreshToken,
-		&acc.TokenExpiry,
-		&acc.Scopes,
-		&acc.Status,
-		&acc.CreatedAt,
-		&acc.UpdatedAt,
-		&acc.LastChecked,
-	)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.ConnectedAccount{}, fmt.Errorf("account not found")
-		}
-		return domain.ConnectedAccount{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return acc, nil
-}
-
-// UpdateAccountTokensParams ...
-type UpdateAccountTokensParams struct {
-	AccountID       uuid.UUID
-	NewAccessToken  string
-	NewRefreshToken string
-	NewTokenExpiry  time.Time
-}
-
-// UpdateConnectedAccountTokenParams ...
-type UpdateConnectedAccountTokenParams struct {
-	ID           uuid.UUID
-	AccessToken  []byte
-	RefreshToken []byte
-	TokenExpiry  time.Time
+	return s.accountStore.GetConnectedAccountByID(ctx, id)
 }
 
 // UpdateAccountTokens ...
 func (s *DBStore) UpdateAccountTokens(ctx context.Context, arg UpdateAccountTokensParams) error {
-	encryptedAccessToken, err := crypto.Encrypt([]byte(arg.NewAccessToken))
-	if err != nil {
-		return fmt.Errorf("could not encrypt new access token: %w", err)
-	}
-
-	var query string
-	var args []interface{}
-
-	if arg.NewRefreshToken != "" {
-		encryptedRefreshToken, err := crypto.Encrypt([]byte(arg.NewRefreshToken))
-		if err != nil {
-			return fmt.Errorf("could not encrypt new refresh token: %w", err)
-		}
-
-		query = `
-        UPDATE connected_accounts
-        SET access_token = $1, refresh_token = $2, token_expiry = $3, updated_at = now()
-        WHERE id = $4;
-        `
-		args = []interface{}{encryptedAccessToken, encryptedRefreshToken, arg.NewTokenExpiry, arg.AccountID}
-	} else {
-		query = `
-        UPDATE connected_accounts
-        SET access_token = $1, token_expiry = $2, updated_at = now()
-        WHERE id = $3;
-        `
-		args = []interface{}{encryptedAccessToken, arg.NewTokenExpiry, arg.AccountID}
-	}
-
-	cmdTag, err := s.pool.Exec(ctx, query, args...)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-
-	if cmdTag.RowsAffected() == 0 {
-		return fmt.Errorf("no account found with ID %s to update", arg.AccountID)
-	}
-
-	return nil
+	return s.accountStore.UpdateAccountTokens(ctx, arg)
 }
 
 // UpdateAccountLastChecked
 func (s *DBStore) UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error {
-	query := `
-    UPDATE connected_accounts
-    SET last_checked = now(), updated_at = now()
-    WHERE id = $1;
-    `
-
-	_, err := s.pool.Exec(ctx, query, id)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-
-	return nil
+	return s.accountStore.UpdateAccountLastChecked(ctx, id)
 }
 
 // GetActiveAccounts haalt alle accounts op die de worker moet controleren
 func (s *DBStore) GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAccount, error) {
-	query := `
-    SELECT id, user_id, provider, email, provider_user_id,
-           access_token, refresh_token, token_expiry, scopes, status,
-           created_at, updated_at, last_checked
-    FROM connected_accounts
-    WHERE status = 'active';
-    `
-
-	rows, err := s.pool.Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("db query error: %w", err)
-	}
-	defer rows.Close()
-
-	var accounts []domain.ConnectedAccount
-	for rows.Next() {
-		var acc domain.ConnectedAccount
-		err := rows.Scan(
-			&acc.ID,
-			&acc.UserID,
-			&acc.Provider,
-			&acc.Email,
-			&acc.ProviderUserID,
-			&acc.AccessToken,
-			&acc.RefreshToken,
-			&acc.TokenExpiry,
-			&acc.Scopes,
-			&acc.Status,
-			&acc.CreatedAt,
-			&acc.UpdatedAt,
-			&acc.LastChecked,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("db row scan error: %w", err)
-		}
-		accounts = append(accounts, acc)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("db rows error: %w", err)
-	}
-
-	return accounts, nil
+	return s.accountStore.GetActiveAccounts(ctx)
 }
 
 // GetAccountsForUser haalt alle accounts op die eigendom zijn van een specifieke gebruiker
 func (s *DBStore) GetAccountsForUser(ctx context.Context, userID uuid.UUID) ([]domain.ConnectedAccount, error) {
-	query := `
-    SELECT id, user_id, provider, email, provider_user_id,
-           access_token, refresh_token, token_expiry, scopes, status,
-           created_at, updated_at, last_checked
-    FROM connected_accounts
-    WHERE user_id = $1
-    ORDER BY created_at DESC;
-    `
-
-	rows, err := s.pool.Query(ctx, query, userID)
-	if err != nil {
-		return nil, fmt.Errorf("db query error: %w", err)
-	}
-	defer rows.Close()
-
-	var accounts []domain.ConnectedAccount
-	for rows.Next() {
-		var acc domain.ConnectedAccount
-		err := rows.Scan(
-			&acc.ID,
-			&acc.UserID,
-			&acc.Provider,
-			&acc.Email,
-			&acc.ProviderUserID,
-			&acc.AccessToken,
-			&acc.RefreshToken,
-			&acc.TokenExpiry,
-			&acc.Scopes,
-			&acc.Status,
-			&acc.CreatedAt,
-			&acc.UpdatedAt,
-			&acc.LastChecked,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("db row scan error: %w", err)
-		}
-		accounts = append(accounts, acc)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("db rows error: %w", err)
-	}
-
-	return accounts, nil
+	return s.accountStore.GetAccountsForUser(ctx, userID)
 }
 
 // VerifyAccountOwnership controleert of een gebruiker eigenaar is van een account
 func (s *DBStore) VerifyAccountOwnership(ctx context.Context, accountID uuid.UUID, userID uuid.UUID) error {
-	query := `
-    SELECT 1 
-    FROM connected_accounts
-    WHERE id = $1 AND user_id = $2
-    LIMIT 1;
-    `
-	var exists int
-	err := s.pool.QueryRow(ctx, query, accountID, userID).Scan(&exists)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf("forbidden: account not found or does not belong to user")
-		}
-		return fmt.Errorf("db query error: %w", err)
-	}
-
-	return nil
+	return s.accountStore.VerifyAccountOwnership(ctx, accountID, userID)
 }
 
 // DeleteConnectedAccount verwijdert een specifiek account en diens data.
 func (s *DBStore) DeleteConnectedAccount(ctx context.Context, accountID uuid.UUID) error {
-	query := `DELETE FROM connected_accounts WHERE id = $1`
-	cmdTag, err := s.pool.Exec(ctx, query, accountID)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-	if cmdTag.RowsAffected() == 0 {
-		return fmt.Errorf("no account found with ID %s to delete", accountID)
-	}
-	return nil
+	return s.accountStore.DeleteConnectedAccount(ctx, accountID)
 }
 
 // --- RULE FUNCTIES ---
 
-// CreateAutomationRuleParams
-type CreateAutomationRuleParams struct {
-	ConnectedAccountID uuid.UUID
-	Name               string
-	TriggerConditions  json.RawMessage // []byte
-	ActionParams       json.RawMessage // []byte
-}
-
 // CreateAutomationRule
 func (s *DBStore) CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) {
-	query := `
-    INSERT INTO automation_rules (
-        connected_account_id, name, trigger_conditions, action_params
-    ) VALUES (
-        $1, $2, $3, $4
-    )
-    RETURNING id, connected_account_id, name, is_active, trigger_conditions, action_params, created_at, updated_at;
-    `
-
-	row := s.pool.QueryRow(ctx, query,
-		arg.ConnectedAccountID,
-		arg.Name,
-		arg.TriggerConditions,
-		arg.ActionParams,
-	)
-
-	var rule domain.AutomationRule
-	err := row.Scan(
-		&rule.ID,
-		&rule.ConnectedAccountID,
-		&rule.Name,
-		&rule.IsActive,
-		&rule.TriggerConditions,
-		&rule.ActionParams,
-		&rule.CreatedAt,
-		&rule.UpdatedAt,
-	)
-
-	if err != nil {
-		return domain.AutomationRule{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return rule, nil
+	return s.ruleStore.CreateAutomationRule(ctx, arg)
 }
 
 // GetRuleByID ...
 func (s *DBStore) GetRuleByID(ctx context.Context, ruleID uuid.UUID) (domain.AutomationRule, error) {
-	query := `
-	    SELECT id, connected_account_id, name, is_active,
-	           trigger_conditions, action_params, created_at, updated_at
-	    FROM automation_rules
-	    WHERE id = $1
-	    `
-	row := s.pool.QueryRow(ctx, query, ruleID)
-
-	var rule domain.AutomationRule
-	err := row.Scan(
-		&rule.ID,
-		&rule.ConnectedAccountID,
-		&rule.Name,
-		&rule.IsActive,
-		&rule.TriggerConditions,
-		&rule.ActionParams,
-		&rule.CreatedAt,
-		&rule.UpdatedAt,
-	)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.AutomationRule{}, fmt.Errorf("rule not found")
-		}
-		return domain.AutomationRule{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return rule, nil
+	return s.ruleStore.GetRuleByID(ctx, ruleID)
 }
 
 // GetRulesForAccount ...
 func (s *DBStore) GetRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.AutomationRule, error) {
-	query := `
-    SELECT id, connected_account_id, name, is_active,
-           trigger_conditions, action_params, created_at, updated_at
-    FROM automation_rules
-    WHERE connected_account_id = $1
-    ORDER BY created_at DESC;
-    `
-
-	rows, err := s.pool.Query(ctx, query, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("db query error: %w", err)
-	}
-	defer rows.Close()
-
-	var rules []domain.AutomationRule
-	for rows.Next() {
-		var rule domain.AutomationRule
-		err := rows.Scan(
-			&rule.ID,
-			&rule.ConnectedAccountID,
-			&rule.Name,
-			&rule.IsActive,
-			&rule.TriggerConditions,
-			&rule.ActionParams,
-			&rule.CreatedAt,
-			&rule.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("db row scan error: %w", err)
-		}
-		rules = append(rules, rule)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("db rows error: %w", err)
-	}
-
-	return rules, nil
-}
-
-// UpdateRuleParams definieert de parameters voor het bijwerken van een regel.
-type UpdateRuleParams struct {
-	RuleID            uuid.UUID
-	Name              string
-	TriggerConditions json.RawMessage
-	ActionParams      json.RawMessage
+	return s.ruleStore.GetRulesForAccount(ctx, accountID)
 }
 
 // UpdateRule werkt een bestaande regel bij.
 func (s *DBStore) UpdateRule(ctx context.Context, arg UpdateRuleParams) (domain.AutomationRule, error) {
-	query := `
-    UPDATE automation_rules
-    SET name = $1, trigger_conditions = $2, action_params = $3, updated_at = now()
-    WHERE id = $4
-    RETURNING id, connected_account_id, name, is_active, trigger_conditions, action_params, created_at, updated_at;
-    `
-	row := s.pool.QueryRow(ctx, query,
-		arg.Name,
-		arg.TriggerConditions,
-		arg.ActionParams,
-		arg.RuleID,
-	)
-
-	var rule domain.AutomationRule
-	err := row.Scan(
-		&rule.ID,
-		&rule.ConnectedAccountID,
-		&rule.Name,
-		&rule.IsActive,
-		&rule.TriggerConditions,
-		&rule.ActionParams,
-		&rule.CreatedAt,
-		&rule.UpdatedAt,
-	)
-
-	if err != nil {
-		return domain.AutomationRule{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return rule, nil
+	return s.ruleStore.UpdateRule(ctx, arg)
 }
 
 // ToggleRuleStatus zet de 'is_active' boolean van een regel om.
 func (s *DBStore) ToggleRuleStatus(ctx context.Context, ruleID uuid.UUID) (domain.AutomationRule, error) {
-	query := `
-    UPDATE automation_rules
-    SET is_active = NOT is_active, updated_at = now()
-    WHERE id = $1
-    RETURNING id, connected_account_id, name, is_active, trigger_conditions, action_params, created_at, updated_at;
-    `
-	row := s.pool.QueryRow(ctx, query, ruleID)
-
-	var rule domain.AutomationRule
-	err := row.Scan(
-		&rule.ID,
-		&rule.ConnectedAccountID,
-		&rule.Name,
-		&rule.IsActive,
-		&rule.TriggerConditions,
-		&rule.ActionParams,
-		&rule.CreatedAt,
-		&rule.UpdatedAt,
-	)
-
-	if err != nil {
-		return domain.AutomationRule{}, fmt.Errorf("db scan error: %w", err)
-	}
-
-	return rule, nil
+	return s.ruleStore.ToggleRuleStatus(ctx, ruleID)
 }
 
 // VerifyRuleOwnership controleert of een gebruiker de eigenaar is van de regel (via het account).
 func (s *DBStore) VerifyRuleOwnership(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error {
-	query := `
-	   SELECT 1
-	   FROM automation_rules r
-	   JOIN connected_accounts ca ON r.connected_account_id = ca.id
-	   WHERE r.id = $1 AND ca.user_id = $2
-	   LIMIT 1;
-	   `
-	var exists int
-	err := s.pool.QueryRow(ctx, query, ruleID, userID).Scan(&exists)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf("forbidden: rule not found or does not belong to user")
-		}
-		return fmt.Errorf("db query error: %w", err)
-	}
-
-	return nil
+	return s.ruleStore.VerifyRuleOwnership(ctx, ruleID, userID)
 }
 
 // DeleteRule verwijdert een specifieke regel uit de database.
 func (s *DBStore) DeleteRule(ctx context.Context, ruleID uuid.UUID) error {
-	query := `
-	   DELETE FROM automation_rules
-	   WHERE id = $1;
-	   `
-
-	cmdTag, err := s.pool.Exec(ctx, query, ruleID)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-
-	if cmdTag.RowsAffected() == 0 {
-		return fmt.Errorf("no rule found with ID %s to delete", ruleID)
-	}
-
-	return nil
+	return s.ruleStore.DeleteRule(ctx, ruleID)
 }
 
 // --- LOG FUNCTIES ---
 
 // UpdateAccountStatus
 func (s *DBStore) UpdateAccountStatus(ctx context.Context, id uuid.UUID, status domain.AccountStatus) error {
-	query := `
-    UPDATE connected_accounts
-    SET status = $1, updated_at = now()
-    WHERE id = $2;
-    `
-	_, err := s.pool.Exec(ctx, query, status, id)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-	return nil
-}
-
-// CreateLogParams
-type CreateLogParams struct {
-	ConnectedAccountID uuid.UUID
-	RuleID             uuid.UUID
-	Status             domain.AutomationLogStatus
-	TriggerDetails     json.RawMessage // []byte
-	ActionDetails      json.RawMessage // []byte
-	ErrorMessage       string
+	return s.accountStore.UpdateAccountStatus(ctx, id, status)
 }
 
 // CreateAutomationLog
 func (s *DBStore) CreateAutomationLog(ctx context.Context, arg CreateLogParams) error {
-	query := `
-    INSERT INTO automation_logs (
-        connected_account_id, rule_id, status, trigger_details, action_details, error_message
-    ) VALUES ($1, $2, $3, $4, $5, $6);
-    `
-	_, err := s.pool.Exec(ctx, query,
-		arg.ConnectedAccountID,
-		arg.RuleID,
-		arg.Status,
-		arg.TriggerDetails,
-		arg.ActionDetails,
-		arg.ErrorMessage,
-	)
-	if err != nil {
-		return fmt.Errorf("db exec error: %w", err)
-	}
-	return nil
+	return s.logStore.CreateAutomationLog(ctx, arg)
 }
 
 // HasLogForTrigger
 func (s *DBStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error) {
-	query := `
-    SELECT 1
-    FROM automation_logs
-    WHERE rule_id = $1
-      AND status = 'success'
-      AND trigger_details->>'google_event_id' = $2
-    LIMIT 1;
-    `
-	var exists int
-	err := s.pool.QueryRow(ctx, query, ruleID, triggerEventID).Scan(&exists)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil // Geen log gevonden, dit is geen error
-		}
-		return false, fmt.Errorf("db query error: %w", err) // Een échte error
-	}
-
-	return true, nil // Gevonden
+	return s.logStore.HasLogForTrigger(ctx, ruleID, triggerEventID)
 }
 
 // GetLogsForAccount haalt de meest recente logs op voor een account.
 func (s *DBStore) GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error) {
-	query := `
-	   SELECT id, connected_account_id, rule_id, timestamp, status,
-	          trigger_details, action_details, error_message
-	   FROM automation_logs
-	   WHERE connected_account_id = $1
-	   ORDER BY timestamp DESC
-	   LIMIT $2;
-	   `
-
-	rows, err := s.pool.Query(ctx, query, accountID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("db query error: %w", err)
-	}
-	defer rows.Close()
-
-	var logs []domain.AutomationLog
-	for rows.Next() {
-		var log domain.AutomationLog
-		err := rows.Scan(
-			&log.ID,
-			&log.ConnectedAccountID,
-			&log.RuleID,
-			&log.Timestamp,
-			&log.Status,
-			&log.TriggerDetails,
-			&log.ActionDetails,
-			&log.ErrorMessage,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("db row scan error: %w", err)
-		}
-		logs = append(logs, log)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("db rows error: %w", err)
-	}
-
-	return logs, nil
+	return s.logStore.GetLogsForAccount(ctx, accountID, limit)
 }
 
 // --- GECENTRALISEERDE TOKEN LOGICA ---
 
-// getDecryptedToken is een helper om de db struct om te zetten naar een oauth2.Token
-func (s *DBStore) getDecryptedToken(acc domain.ConnectedAccount) (*oauth2.Token, error) {
-	plaintextAccessToken, err := crypto.Decrypt(acc.AccessToken)
-	if err != nil {
-		return nil, fmt.Errorf("could not decrypt access token: %w", err)
-	}
-
-	var plaintextRefreshToken []byte
-	if len(acc.RefreshToken) > 0 {
-		plaintextRefreshToken, err = crypto.Decrypt(acc.RefreshToken)
-		if err != nil {
-			return nil, fmt.Errorf("could not decrypt refresh token: %w", err)
-		}
-	}
-
-	return &oauth2.Token{
-		AccessToken:  string(plaintextAccessToken),
-		RefreshToken: string(plaintextRefreshToken),
-		Expiry:       acc.TokenExpiry,
-		TokenType:    "Bearer",
-	}, nil
-}
-
 // GetValidTokenForAccount is de centrale functie die een token ophaalt,
 // en indien nodig ververst en opslaat.
 func (s *DBStore) GetValidTokenForAccount(ctx context.Context, accountID uuid.UUID) (*oauth2.Token, error) {
-	// 1. Haal account op uit DB
-	acc, err := s.GetConnectedAccountByID(ctx, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("kon account niet ophalen: %w", err)
-	}
-
-	// 2. Decrypt het token
-	token, err := s.getDecryptedToken(acc)
-	if err != nil {
-		return nil, fmt.Errorf("kon token niet decrypten: %w", err)
-	}
-
-	// 3. Controleer of het (bijna) verlopen is
-	if token.Valid() {
-		return token, nil // Token is prima
-	}
-
-	// 4. Token is verlopen, ververs het
-	log.Printf("[Store] Token for account %s (User %s) is expired. Refreshing...", acc.ID, acc.UserID)
-
-	ts := s.googleOAuthConfig.TokenSource(ctx, token)
-	newToken, err := ts.Token()
-	if err != nil {
-		// Vang 'invalid_grant'
-		if strings.Contains(err.Error(), "invalid_grant") {
-			log.Printf("[Store] FATAL: Access for account %s has been revoked. Setting status to 'revoked'.", acc.ID)
-			if err := s.UpdateAccountStatus(ctx, acc.ID, domain.StatusRevoked); err != nil {
-				log.Printf("[Store] ERROR: Failed to update status for revoked account %s: %v", acc.ID, err)
-			}
-			return nil, ErrTokenRevoked // Gooi specifieke error
-		}
-		return nil, fmt.Errorf("could not refresh token: %w", err)
-	}
-
-	// 5. Sla het nieuwe token op
-	// Als we GEEN nieuwe refresh token krijgen, hergebruik dan de oude
-	if newToken.RefreshToken == "" {
-		newToken.RefreshToken = token.RefreshToken
-	}
-
-	err = s.UpdateAccountTokens(ctx, UpdateAccountTokensParams{
-		AccountID:       acc.ID,
-		NewAccessToken:  newToken.AccessToken,
-		NewRefreshToken: newToken.RefreshToken, // Zorg dat we de nieuwe refresh token opslaan
-		NewTokenExpiry:  newToken.Expiry,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("kon ververst token niet opslaan: %w", err)
-	}
-
-	log.Printf("[Store] Token for account %s successfully refreshed and saved.", acc.ID)
-
-	// 6. Geef het nieuwe, geldige token terug
-	return newToken, nil
+	return s.accountStore.GetValidTokenForAccount(ctx, accountID)
 }
 
 // UpdateConnectedAccountToken update access/refresh token
 func (s *DBStore) UpdateConnectedAccountToken(ctx context.Context, params UpdateConnectedAccountTokenParams) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE connected_accounts
-		SET access_token = $1, refresh_token = $2, token_expiry = $3, updated_at = now()
-		WHERE id = $4
-	`, params.AccessToken, params.RefreshToken, params.TokenExpiry, params.ID)
-	return err
+	return s.accountStore.UpdateConnectedAccountToken(ctx, params)
+}
+
+// --- GMAIL AUTOMATION RULE METHODS ---
+
+// CreateGmailAutomationRule creates a new Gmail automation rule
+func (s *DBStore) CreateGmailAutomationRule(ctx context.Context, arg CreateGmailAutomationRuleParams) (domain.GmailAutomationRule, error) {
+	return s.gmailStore.CreateGmailAutomationRule(ctx, arg)
+}
+
+// GetGmailRulesForAccount gets all Gmail automation rules for an account
+func (s *DBStore) GetGmailRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.GmailAutomationRule, error) {
+	return s.gmailStore.GetGmailRulesForAccount(ctx, accountID)
+}
+
+// UpdateGmailRule updates an existing Gmail automation rule
+func (s *DBStore) UpdateGmailRule(ctx context.Context, arg UpdateGmailRuleParams) (domain.GmailAutomationRule, error) {
+	return s.gmailStore.UpdateGmailRule(ctx, arg)
+}
+
+// DeleteGmailRule deletes a Gmail automation rule
+func (s *DBStore) DeleteGmailRule(ctx context.Context, ruleID uuid.UUID) error {
+	return s.gmailStore.DeleteGmailRule(ctx, ruleID)
+}
+
+// ToggleGmailRuleStatus toggles the active status of a Gmail automation rule
+func (s *DBStore) ToggleGmailRuleStatus(ctx context.Context, ruleID uuid.UUID) (domain.GmailAutomationRule, error) {
+	return s.gmailStore.ToggleGmailRuleStatus(ctx, ruleID)
+}
+
+// --- GMAIL MESSAGE STORAGE METHODS ---
+
+// StoreGmailMessage stores or updates a Gmail message
+func (s *DBStore) StoreGmailMessage(ctx context.Context, arg StoreGmailMessageParams) error {
+	return s.gmailStore.StoreGmailMessage(ctx, arg)
+}
+
+// StoreGmailThread stores or updates a Gmail thread
+func (s *DBStore) StoreGmailThread(ctx context.Context, arg StoreGmailThreadParams) error {
+	return s.gmailStore.StoreGmailThread(ctx, arg)
+}
+
+// UpdateGmailMessageStatus updates the status of a Gmail message
+func (s *DBStore) UpdateGmailMessageStatus(ctx context.Context, accountID uuid.UUID, messageID string, status domain.GmailMessageStatus) error {
+	return s.gmailStore.UpdateGmailMessageStatus(ctx, accountID, messageID, status)
+}
+
+// GetGmailMessagesForAccount gets recent Gmail messages for an account
+func (s *DBStore) GetGmailMessagesForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.GmailMessage, error) {
+	return s.gmailStore.GetGmailMessagesForAccount(ctx, accountID, limit)
+}
+
+// --- GMAIL SYNC STATE METHODS ---
+
+// UpdateGmailSyncState updates the Gmail sync state for an account
+func (s *DBStore) UpdateGmailSyncState(ctx context.Context, accountID uuid.UUID, historyID string, lastSync time.Time) error {
+	return s.gmailStore.UpdateGmailSyncState(ctx, accountID, historyID, lastSync)
+}
+
+// GetGmailSyncState gets the Gmail sync state for an account
+func (s *DBStore) GetGmailSyncState(ctx context.Context, accountID uuid.UUID) (historyID *string, lastSync *time.Time, err error) {
+	return s.gmailStore.GetGmailSyncState(ctx, accountID)
 }

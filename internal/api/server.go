@@ -1,6 +1,15 @@
 package api
 
 import (
+	"agenda-automator-api/internal/api/account"
+	"agenda-automator-api/internal/api/auth"
+	"agenda-automator-api/internal/api/calendar"
+	"agenda-automator-api/internal/api/common"
+	"agenda-automator-api/internal/api/gmail"
+	"agenda-automator-api/internal/api/health"
+	"agenda-automator-api/internal/api/log"
+	"agenda-automator-api/internal/api/rule"
+	"agenda-automator-api/internal/api/user"
 	"agenda-automator-api/internal/store"
 	"context"
 	"fmt"
@@ -8,28 +17,30 @@ import (
 	"os"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5" // <-- HIER ZAT DE TYPO
 	"github.com/go-chi/cors"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
 
-type contextKey string
-
-var userContextKey contextKey = "user_id"
+// VERWIJDERD: De helper GetUserIDFromContext stond al in common.go
+// (Je kunt deze laten staan als je wilt, maar het is dubbel)
 
 type Server struct {
 	Router            *chi.Mux
-	store             store.Storer
-	googleOAuthConfig *oauth2.Config
+	Store             store.Storer
+	Logger            *zap.Logger
+	GoogleOAuthConfig *oauth2.Config
 }
 
-func NewServer(s store.Storer, oauthConfig *oauth2.Config) *Server {
+func NewServer(s store.Storer, logger *zap.Logger, oauthConfig *oauth2.Config) *Server {
 	server := &Server{
 		Router:            chi.NewRouter(),
-		store:             s,
-		googleOAuthConfig: oauthConfig,
+		Store:             s,
+		Logger:            logger,
+		GoogleOAuthConfig: oauthConfig,
 	}
 
 	server.setupMiddleware()
@@ -52,42 +63,61 @@ func (s *Server) setupMiddleware() {
 
 func (s *Server) setupRoutes() {
 	s.Router.Route("/api/v1", func(r chi.Router) {
-		// Auth routes (bestaand)
-		r.Get("/auth/google/login", s.handleGoogleLogin())
-		r.Get("/auth/google/callback", s.handleGoogleCallback())
+		// Health check (unprotected)
+		// AANGEPAST: health.HandleHealth accepteert nu ook de logger
+		r.Get("/health", health.HandleHealth(s.Logger))
+
+		// Auth routes
+		// AANGEPAST: Doorgeven s.Logger
+		r.Get("/auth/google/login", auth.HandleGoogleLogin(s.GoogleOAuthConfig, s.Logger))
+		r.Get("/auth/google/callback", auth.HandleGoogleCallback(s.Store, s.GoogleOAuthConfig, s.Logger))
 
 		// Protected routes
 		r.Group(func(r chi.Router) {
 			r.Use(s.authMiddleware)
 
-			// User routes (bestaand)
-			r.Get("/me", s.handleGetMe())
-			r.Get("/users/me", s.handleGetMe())
+			// User routes
+			// AANGEPAST: Logger wordt nu correct doorgegeven
+			r.Get("/me", user.HandleGetMe(s.Store, s.Logger))
+			r.Get("/users/me", user.HandleGetMe(s.Store, s.Logger))
 
-			// Account routes (bestaand)
-			r.Get("/accounts", s.handleGetConnectedAccounts())
-			r.Delete("/accounts/{accountId}", s.handleDeleteConnectedAccount())
+			// Account routes
+			// AANGEPAST: Doorgeven s.Logger
+			r.Get("/accounts", account.HandleGetConnectedAccounts(s.Store, s.Logger))
+			r.Delete("/accounts/{accountId}", account.HandleDeleteConnectedAccount(s.Store, s.Logger))
 
-			// Rule routes (bestaand)
-			r.Post("/accounts/{accountId}/rules", s.handleCreateRule())
-			r.Get("/accounts/{accountId}/rules", s.handleGetRules())
-			r.Put("/rules/{ruleId}", s.handleUpdateRule())
-			r.Delete("/rules/{ruleId}", s.handleDeleteRule())
-			r.Put("/rules/{ruleId}/toggle", s.handleToggleRule())
+			// Rule routes
+			// AANGEPAST: Doorgeven s.Logger
+			r.Post("/accounts/{accountId}/rules", rule.HandleCreateRule(s.Store, s.Logger))
+			r.Get("/accounts/{accountId}/rules", rule.HandleGetRules(s.Store, s.Logger))
+			r.Put("/rules/{ruleId}", rule.HandleUpdateRule(s.Store, s.Logger))
+			r.Delete("/rules/{ruleId}", rule.HandleDeleteRule(s.Store, s.Logger))
+			r.Put("/rules/{ruleId}/toggle", rule.HandleToggleRule(s.Store, s.Logger))
 
-			// Log routes (bestaand)
-			r.Get("/accounts/{accountId}/logs", s.handleGetAutomationLogs())
+			// Log routes
+			// AANGEPAST: Doorgeven s.Logger
+			r.Get("/accounts/{accountId}/logs", log.HandleGetAutomationLogs(s.Store, s.Logger))
 
-			// Calendar routes (bijgewerkt + nieuw)
-			r.Get("/accounts/{accountId}/calendar/events", s.handleGetCalendarEvents()) // Bijgewerkt voor multi-calendar
+			// Calendar routes (waren al correct)
+			r.Get("/accounts/{accountId}/calendars", calendar.HandleListCalendars(s.Store, s.Logger))
+			r.Get("/accounts/{accountId}/calendar/events", calendar.HandleGetCalendarEvents(s.Store, s.Logger))
+			r.Post("/accounts/{accountId}/calendar/events", calendar.HandleCreateEvent(s.Store, s.Logger))
+			r.Put("/accounts/{accountId}/calendar/events/{eventId}", calendar.HandleUpdateEvent(s.Store, s.Logger))
+			r.Delete("/accounts/{accountId}/calendar/events/{eventId}", calendar.HandleDeleteEvent(s.Store, s.Logger))
+			r.Post("/calendar/aggregated-events", calendar.HandleGetAggregatedEvents(s.Store, s.Logger))
 
-			// NIEUW: CRUD voor events
-			r.Post("/accounts/{accountId}/calendar/events", s.handleCreateEvent())
-			r.Put("/accounts/{accountId}/calendar/events/{eventId}", s.handleUpdateEvent())
-			r.Delete("/accounts/{accountId}/calendar/events/{eventId}", s.handleDeleteEvent())
+			// Gmail routes
+			// AANGEPAST: Doorgeven s.Logger
+			r.Get("/accounts/{accountId}/gmail/messages", gmail.HandleGetGmailMessages(s.Store, s.Logger))
+			r.Post("/accounts/{accountId}/gmail/send", gmail.HandleSendGmailMessage(s.Store, s.Logger))
+			r.Get("/accounts/{accountId}/gmail/labels", gmail.HandleGetGmailLabels(s.Store, s.Logger))
+			r.Post("/accounts/{accountId}/gmail/drafts", gmail.HandleCreateGmailDraft(s.Store, s.Logger))
+			r.Get("/accounts/{accountId}/gmail/drafts", gmail.HandleGetGmailDrafts(s.Store, s.Logger))
 
-			// NIEUW: Aggregated events
-			r.Post("/calendar/aggregated-events", s.handleGetAggregatedEvents())
+			// Gmail automation rules
+			// AANGEPAST: Doorgeven s.Logger
+			r.Post("/accounts/{accountId}/gmail/rules", gmail.HandleCreateGmailRule(s.Store, s.Logger))
+			r.Get("/accounts/{accountId}/gmail/rules", gmail.HandleGetGmailRules(s.Store, s.Logger))
 		})
 	})
 }
@@ -97,7 +127,8 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			WriteJSONError(w, http.StatusUnauthorized, "Geen authenticatie header")
+			// AANGEPAST: s.Logger meegegeven
+			common.WriteJSONError(w, http.StatusUnauthorized, "Geen authenticatie header", s.Logger)
 			return
 		}
 
@@ -112,29 +143,33 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		})
 
 		if err != nil || !token.Valid {
-			WriteJSONError(w, http.StatusUnauthorized, "Ongeldige token")
+			// AANGEPAST: s.Logger meegegeven
+			common.WriteJSONError(w, http.StatusUnauthorized, "Ongeldige token", s.Logger)
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			WriteJSONError(w, http.StatusUnauthorized, "Ongeldige claims")
+			// AANGEPAST: s.Logger meegegeven
+			common.WriteJSONError(w, http.StatusUnauthorized, "Ongeldige claims", s.Logger)
 			return
 		}
 
 		userIDStr, ok := claims["user_id"].(string)
 		if !ok {
-			WriteJSONError(w, http.StatusUnauthorized, "Geen user ID in token")
+			// AANGEPAST: s.Logger meegegeven
+			common.WriteJSONError(w, http.StatusUnauthorized, "Geen user ID in token", s.Logger)
 			return
 		}
 
 		userID, err := uuid.Parse(userIDStr)
 		if err != nil {
-			WriteJSONError(w, http.StatusUnauthorized, "Ongeldig user ID")
+			// AANGEPAST: s.Logger meegegeven
+			common.WriteJSONError(w, http.StatusUnauthorized, "Ongeldig user ID", s.Logger)
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), userContextKey, userID)
+		ctx := context.WithValue(r.Context(), common.UserContextKey, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

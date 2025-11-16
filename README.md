@@ -9,7 +9,7 @@ Dit is de Go-backend voor de Agenda Automator. Het biedt een REST API voor het b
    * **Achtergrond Worker:** Een *long-running* goroutine die periodiek accounts controleert en tokens ververst.
    * **Veilig Tokenbeheer:** OAuth `access_token` en `refresh_token` worden versleuteld (AES-GCM) opgeslagen in de database.
    * **Automatisch Token Verversen:** De worker ververst automatisch verlopen Google OAuth-tokens.
-   * **Google Calendar Monitoring:** De worker haalt agenda-items op en logt deze (automatisering nog niet geïmplementeerd).
+   * **Google Calendar Automation:** De worker past automatiseringsregels toe op agenda-events en creëert herinneringen.
    * **Database:** PostgreSQL-database met een robuust, gemigreerd schema.
    * **Containerized:** Inclusief `docker-compose.yml` voor het lokaal opzetten van Postgres.
 
@@ -26,10 +26,10 @@ De backend bestaat uit twee kerncomponenten die tegelijkertijd draaien:
 
 2.  **De Worker (`/internal/worker`):**
 
-       * Een *proactief* achtergrondproces (goroutine) dat op een timer draait (elke minuut).
+       * Een *proactief* achtergrondproces (goroutine) dat op een timer draait (elke 2 minuten).
        * Leest `connected_accounts` uit de database.
        * Controleert of tokens verlopen zijn en ververst ze (via Google OAuth).
-       * Haalt agenda-items op en logt deze (automatisering nog niet geïmplementeerd).
+       * Haalt agenda-items op en past automatiseringsregels toe om herinneringen te creëren.
 
 Deze twee componenten communiceren *nooit* direct met elkaar. Ze delen alleen de **Database Store** (`/internal/store`).
 
@@ -145,7 +145,7 @@ Je zou nu de volgende output moeten zien, wat aangeeft dat *zowel* de API als de
 
 ## 📖 API Endpoints
 
-De API is beschikbaar op `http://localhost:8080`. Zie [API Reference](docs/API_REFERENCE.md) voor volledige documentatie.
+De API is beschikbaar op `http://localhost:8080` en vereist JWT authenticatie voor de meeste endpoints. Zie [API Reference](docs/API_REFERENCE.md) voor volledige documentatie.
 
 ### Health Check
 
@@ -156,56 +156,51 @@ De API is beschikbaar op `http://localhost:8080`. Zie [API Reference](docs/API_R
     {"status":"ok"}
     ```
 
-### Users
+### Authentication
 
-  * **Endpoint:** `POST /api/v1/users`
-  * **Omschrijving:** Maakt een nieuwe gebruiker aan in het systeem.
-  * **Request Body:**
-    ```json
-    {
-      "email": "gebruiker@email.com",
-      "name": "Naam Gebruiker"
-    }
-    ```
-  * **Response (201 Created):**
-    ```json
-    {
-      "ID": "789a93bc-81f1-48dd-8bf2-fdfe60d94b51",
-      "Email": "gebruiker@email.com",
-      "Name": "Naam Gebruiker",
-      "CreatedAt": "2025-11-11T18:00:00Z",
-      "UpdatedAt": "2025-11-11T18:00:00Z"
-    }
-    ```
+  * **Endpoint:** `GET /api/v1/auth/google/login`
+  * **Omschrijving:** Start de Google OAuth flow. Genereert CSRF token en redirect naar Google.
+  * **Response:** Redirect (307) naar Google OAuth.
 
-### OAuth Flow
+  * **Endpoint:** `GET /api/v1/auth/google/callback`
+  * **Omschrijving:** OAuth callback. Wisselt code voor tokens, maakt gebruiker aan, genereert JWT.
+  * **Response:** Redirect (303) naar frontend met JWT token.
 
-   * **Endpoint:** `GET /api/v1/auth/google/login`
-   * **Omschrijving:** Start de Google OAuth flow. Stuurt gebruiker door naar Google consent pagina met CSRF bescherming.
-   * **Response:** Redirect (307) naar Google OAuth.
+### User Management
 
-   * **Endpoint:** `GET /api/v1/auth/google/callback`
-   * **Omschrijving:** Callback endpoint voor Google OAuth. Wisselt code in voor tokens, haalt gebruikersinfo op, maakt gebruiker aan, slaat tokens veilig op, en redirect naar frontend.
-   * **Response:** Redirect (303) naar `CLIENT_BASE_URL/dashboard?success=true`.
+  * **Endpoint:** `GET /api/v1/me` (vereist JWT)
+  * **Omschrijving:** Haalt huidige gebruiker op.
+  * **Response (200 OK):** Gebruiker object
 
-### Connected Accounts (Legacy)
+### Connected Accounts
 
-   * **Endpoint:** `POST /api/v1/users/{userID}/accounts`
-   * **Omschrijving:** Handmatige endpoint voor het koppelen van Google accounts (voor development/testing). In productie wordt dit afgehandeld door de OAuth callback.
-   * **Request Body:**
-     ```json
-     {
-       "provider": "google",
-       "email": "gebruiker@google.com",
-       "provider_user_id": "google-sub-id-12345",
-       "access_token": "EEN-ECHT-ACCESS-TOKEN",
-       "refresh_token": "EEN-ECHT-REFRESH-TOKEN",
-       "token_expiry": "2025-11-11T19:00:00Z",
-       "scopes": ["https://www.googleapis.com/auth/calendar.events"]
-     }
-     ```
-   * **Response (201 Created):**
-       * *Geeft het aangemaakte `connected_account` object terug. Let op: de tokens in de response zijn **versleuteld** (als `bytea`).*
+  * **Endpoint:** `GET /api/v1/accounts` (vereist JWT)
+  * **Omschrijving:** Haalt alle gekoppelde accounts van de gebruiker op.
+  * **Response (200 OK):** Array van connected account objecten
+
+  * **Endpoint:** `DELETE /api/v1/accounts/{accountId}` (vereist JWT)
+  * **Omschrijving:** Verwijdert een gekoppeld account.
+  * **Response (204 No Content):**
+
+### Automation Rules
+
+  * **Endpoint:** `POST /api/v1/accounts/{accountId}/rules` (vereist JWT)
+  * **Omschrijving:** Creëert een nieuwe automatiseringsregel.
+  * **Response (201 Created):** Rule object
+
+  * **Endpoint:** `GET /api/v1/accounts/{accountId}/rules` (vereist JWT)
+  * **Omschrijving:** Haalt alle regels voor een account op.
+  * **Response (200 OK):** Array van rule objecten
+
+### Calendar Operations
+
+  * **Endpoint:** `GET /api/v1/accounts/{accountId}/calendar/events` (vereist JWT)
+  * **Omschrijving:** Haalt calendar events op.
+  * **Response (200 OK):** Array van Google Calendar events
+
+  * **Endpoint:** `POST /api/v1/accounts/{accountId}/calendar/events` (vereist JWT)
+  * **Omschrijving:** Creëert een nieuw calendar event.
+  * **Response (201 Created):** Created event object
 
 -----
 
