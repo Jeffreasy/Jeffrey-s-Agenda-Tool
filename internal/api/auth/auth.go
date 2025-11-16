@@ -52,7 +52,10 @@ func generateJWT(userID uuid.UUID) (string, error) {
 func HandleGoogleLogin(oauthConfig *oauth2.Config, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		b := make([]byte, 32)
-		rand.Read(b)
+		if _, err := rand.Read(b); err != nil { // GOED
+			common.WriteJSONError(w, http.StatusInternalServerError, "Kon state niet genereren", log)
+			return
+		}
 		state := base64.URLEncoding.EncodeToString(b)
 
 		cookie := &http.Cookie{

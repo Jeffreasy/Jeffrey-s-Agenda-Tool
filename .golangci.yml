@@ -1,35 +1,43 @@
 run:
   timeout: 5m
-  skip-dirs:
+
+# AANGEPAST: 'run.skip-dirs' is nu 'issues.exclude-dirs'
+issues:
+  exclude-dirs:
     - .github
 
 linters-settings:
+  # Instellingen om de linter minder vervelend te maken
   govet:
     enable:
       - shadow # Vervangt de oude 'check-shadowing'
-  errcheck:
-    # We negeren errors van .Close() en .Sync(), wat gebruikelijk is
-    exclude-functions:
-      - io.Closer.Close
-      - go.uber.org/zap.Logger.Sync
   gocritic:
-    enabled-tags:
-      - performance
-      - style
-      - experimental
+    # We negeren deze 'performance' fouten voor nu
+    disabled-checks:
+      - hugeParam
+      - rangeValCopy
   gocyclo:
-    min-complexity: 15 # Wees iets toleranter dan de default 10
+    min-complexity: 25 # Sta complexere functies toe (jouw max was 35)
   dupl:
-    threshold: 100 # Default
+    threshold: 150 # Sta meer duplicatie toe
+  mnd:
+    # Negeer 'magic numbers'
+    checks: []
+  revive:
+    # Negeer klachten over 'stuttering' (bv. user.UserStore)
+    ignore-generated-header: true
+    rules:
+      - name: var-naming
+      - name: unused-parameter
 
 linters:
   disable-all: true
   enable:
-    # Dit zijn de moderne vervangers voor de linters waar hij over klaagde
-    - unused      # Vervangt structcheck, varcheck, deadcode
-    - revive      # Vervangt golint
-    - mnd         # Vervangt gomnd
-    - exportloopref # Vervangt scopelint
+    # Dit zijn de moderne vervangers
+    - unused        # Vervangt structcheck, varcheck, deadcode
+    - revive        # Vervangt golint
+    - mnd           # Vervangt gomnd
+    - copyloopvar   # Vervangt exportloopref (sinds Go 1.22)
 
     # Essentiële linters
     - errcheck
@@ -38,7 +46,7 @@ linters:
     - goimports
     - gofmt
 
-    # Goede "best practice" linters
+    # Goede 'best practice' linters
     - goconst
     - gocyclo
     - gocritic

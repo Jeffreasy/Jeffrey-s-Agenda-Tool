@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"time"
 	// _ "embed" // <-- VERWIJDERD
 
 	"net/http"
@@ -121,7 +122,16 @@ func main() {
 
 	log.Info("starting API server", zap.String("port", port), zap.String("component", "main"))
 
-	if err = http.ListenAndServe(":"+port, apiServer.Router); err != nil {
+	// GOED: Maak een server met timeouts
+	server := &http.Server{
+		Addr:         ":" + port,
+		Handler:      apiServer.Router,
+		ReadTimeout:  5 * time.Second,   // 5 sec om headers te lezen
+		WriteTimeout: 10 * time.Second,  // 10 sec om response te schrijven
+		IdleTimeout:  120 * time.Second, // 120 sec max keep-alive
+	}
+
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Error("could not start server", zap.Error(err))
 	}
 }
