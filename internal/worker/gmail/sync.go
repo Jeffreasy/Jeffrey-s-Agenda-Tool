@@ -38,7 +38,7 @@ func (gp *GmailProcessor) fetchRecentMessages(srv *gmail.Service, _ domain.Conne
 func (gp *GmailProcessor) processHistoryItems(
 	history *gmail.ListHistoryResponse,
 	srv *gmail.Service,
-) ([]*gmail.Message, error) {
+) []*gmail.Message {
 	var messages []*gmail.Message
 
 	for _, historyItem := range history.History {
@@ -52,5 +52,5 @@ func (gp *GmailProcessor) processHistoryItems(
 		}
 	}
 
-	return messages, nil
+	return messages
 }

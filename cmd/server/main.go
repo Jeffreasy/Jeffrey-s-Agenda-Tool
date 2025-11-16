@@ -47,7 +47,7 @@ func main() {
 
 	// -----------------------------------------------------
 	// AANGEPAST: Stap 2.5 - Voer migraties uit
-	if err := database.RunMigrations(context.Background(), pool, log); err != nil {
+	if err = database.RunMigrations(context.Background(), pool, log); err != nil {
 		log.Fatal("database migrations failed", zap.Error(err))
 	}
 	// -----------------------------------------------------
@@ -117,7 +117,7 @@ func main() {
 
 	log.Info("starting API server", zap.String("port", port), zap.String("component", "main"))
 
-	if err := http.ListenAndServe(":"+port, apiServer.Router); err != nil {
+	if err = http.ListenAndServe(":"+port, apiServer.Router); err != nil {
 		log.Fatal("could not start server", zap.Error(err))
 	}
 }

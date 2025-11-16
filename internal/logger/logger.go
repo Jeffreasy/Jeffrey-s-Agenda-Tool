@@ -20,9 +20,8 @@ func NewLogger() (*zap.Logger, error) {
 	var cores []zapcore.Core
 
 	// Console output
-	consoleEncoder := zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig())
+	var consoleEncoder zapcore.Encoder
 	if env == "production" {
-		consoleEncoder = zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig())
 		consoleEncoder = zapcore.NewJSONEncoder(zapcore.EncoderConfig{
 			TimeKey:        "timestamp",
 			LevelKey:       "level",

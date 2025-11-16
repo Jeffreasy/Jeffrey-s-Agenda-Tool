@@ -32,7 +32,7 @@ func (gp *GmailProcessor) storeMessageInDB(
 		bccRecipients = gp.extractRecipients(message.Payload.Headers, "Bcc")
 	}
 
-	status := domain.GmailUnread
+	var status domain.GmailMessageStatus
 	if gp.hasLabel(message.LabelIds, "UNREAD") {
 		status = domain.GmailUnread
 	} else {

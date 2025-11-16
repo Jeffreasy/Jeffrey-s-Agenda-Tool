@@ -82,10 +82,7 @@ func (gp *GmailProcessor) ProcessMessages(ctx context.Context, acc domain.Connec
 					return fmt.Errorf("could not fetch recent messages: %w", err)
 				}
 			} else {
-				messagesToProcess, err = gp.processHistoryItems(history, srv)
-				if err != nil {
-					return fmt.Errorf("could not process history items: %w", err)
-				}
+				messagesToProcess = gp.processHistoryItems(history, srv)
 
 				if history.HistoryId != 0 {
 					newHistoryID := fmt.Sprintf("%d", history.HistoryId)

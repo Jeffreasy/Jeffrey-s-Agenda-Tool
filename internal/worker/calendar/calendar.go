@@ -1,8 +1,6 @@
 package calendar
 
 import (
-	"agenda-automator-api/internal/domain"
-	"agenda-automator-api/internal/store"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,6 +11,9 @@ import (
 	"golang.org/x/oauth2"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
+
+	"agenda-automator-api/internal/domain"
+	"agenda-automator-api/internal/store"
 )
 
 // CalendarProcessor handles calendar event processing
@@ -81,7 +82,7 @@ func (cp *CalendarProcessor) ProcessEvents(
 			}
 
 			var trigger domain.TriggerConditions
-			if err := json.Unmarshal(rule.TriggerConditions, &trigger); err != nil {
+			if err = json.Unmarshal(rule.TriggerConditions, &trigger); err != nil {
 				log.Printf("[Calendar] ERROR unmarshaling trigger for rule %s: %v", rule.ID, err)
 				continue
 			}
@@ -131,7 +132,7 @@ func (cp *CalendarProcessor) ProcessEvents(
 			log.Printf("[Calendar] MATCH: Event '%s' (ID: %s) matches rule '%s'.", event.Summary, event.Id, rule.Name)
 
 			var action domain.ActionParams
-			if err := json.Unmarshal(rule.ActionParams, &action); err != nil {
+			if err = json.Unmarshal(rule.ActionParams, &action); err != nil {
 				log.Printf("[Calendar] ERROR unmarshaling action for rule %s: %v", rule.ID, err)
 				continue
 			}
@@ -182,7 +183,7 @@ func (cp *CalendarProcessor) ProcessEvents(
 					TriggerDetails:     triggerDetailsJSON,
 					ActionDetails:      actionDetailsJSON,
 				}
-				if err := cp.store.CreateAutomationLog(ctx, logParams); err != nil {
+				if err = cp.store.CreateAutomationLog(ctx, logParams); err != nil {
 					log.Printf("[Calendar] ERROR saving skip log for rule %s: %v", rule.ID, err)
 				}
 				continue
@@ -218,7 +219,7 @@ func (cp *CalendarProcessor) ProcessEvents(
 					TriggerDetails:     triggerDetailsJSON,
 					ErrorMessage:       err.Error(),
 				}
-				if err := cp.store.CreateAutomationLog(ctx, logParams); err != nil {
+				if err = cp.store.CreateAutomationLog(ctx, logParams); err != nil {
 					log.Printf("[Calendar] ERROR saving failure log for rule %s: %v", rule.ID, err)
 				}
 				continue
@@ -243,7 +244,7 @@ func (cp *CalendarProcessor) ProcessEvents(
 				TriggerDetails:     triggerDetailsJSON,
 				ActionDetails:      actionDetailsJSON,
 			}
-			if err := cp.store.CreateAutomationLog(ctx, logParams); err != nil {
+			if err = cp.store.CreateAutomationLog(ctx, logParams); err != nil {
 				log.Printf("[Calendar] ERROR saving success log for rule %s: %v", rule.ID, err)
 			}
 
