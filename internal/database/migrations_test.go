@@ -41,7 +41,12 @@ func TestRunMigrations_Success(t *testing.T) {
 	mockDB.On("Exec", ctx, migrations.OptimizationIndexesUp, mock.Anything).Return(pgconn.CommandTag{}, nil).Once()
 	mockDB.On("Exec", ctx, migrations.TableOptimizationsUp, mock.Anything).Return(pgconn.CommandTag{}, nil).Once()
 	mockDB.On("Exec", ctx, migrations.CalendarOptimizationsUp, mock.Anything).Return(pgconn.CommandTag{}, nil).Once()
-	mockDB.On("Exec", ctx, migrations.ConnectedAccountsOptimizationUp, mock.Anything).Return(pgconn.CommandTag{}, nil).Once()
+	mockDB.On(
+		"Exec",
+		ctx,
+		migrations.ConnectedAccountsOptimizationUp,
+		mock.Anything,
+	).Return(pgconn.CommandTag{}, nil).Once()
 
 	// Act
 	err := RunMigrations(ctx, mockDB, log)

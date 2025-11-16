@@ -12,8 +12,14 @@ import (
 	"google.golang.org/api/gmail/v1"
 )
 
-// processMessageAgainstRules applies automation rules to a message
-func (gp *GmailProcessor) processMessageAgainstRules(ctx context.Context, srv *gmail.Service, acc domain.ConnectedAccount, message *gmail.Message, rules []domain.GmailAutomationRule) error {
+// processMessageAgainstRules applies automation rules to a message.
+func (gp *GmailProcessor) processMessageAgainstRules(
+	ctx context.Context,
+	srv *gmail.Service,
+	acc domain.ConnectedAccount,
+	message *gmail.Message,
+	rules []domain.GmailAutomationRule,
+) error {
 	// Store message in database first
 	err := gp.storeMessageInDB(ctx, acc, message)
 	if err != nil {
@@ -89,8 +95,14 @@ func (gp *GmailProcessor) checkRuleMatch(message *gmail.Message, rule domain.Gma
 	return false, nil
 }
 
-// executeRuleAction executes the action defined by a rule
-func (gp *GmailProcessor) executeRuleAction(ctx context.Context, srv *gmail.Service, acc domain.ConnectedAccount, message *gmail.Message, rule domain.GmailAutomationRule) error {
+// executeRuleAction executes the action defined by a rule.
+func (gp *GmailProcessor) executeRuleAction(
+	ctx context.Context,
+	srv *gmail.Service,
+	acc domain.ConnectedAccount,
+	message *gmail.Message,
+	rule domain.GmailAutomationRule,
+) error {
 	switch rule.ActionType {
 	case domain.GmailActionAutoReply:
 		return gp.executeAutoReply(ctx, srv, acc, message, rule)

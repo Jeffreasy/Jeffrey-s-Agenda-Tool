@@ -32,14 +32,26 @@ func ConnectDB(log *zap.Logger) (*pgxpool.Pool, error) {
 
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		logger.LogDuration(log, "database_connection_pool_creation", time.Since(start).Milliseconds(), zap.Error(err), zap.String("component", "database"))
+		logger.LogDuration(
+			log,
+			"database_connection_pool_creation",
+			time.Since(start).Milliseconds(),
+			zap.Error(err),
+			zap.String("component", "database"),
+		)
 		return nil, fmt.Errorf("unable to create connection pool: %v", err)
 	}
 
 	pingStart := time.Now()
 	if err := pool.Ping(context.Background()); err != nil {
 		pool.Close()
-		logger.LogDuration(log, "database_ping", time.Since(pingStart).Milliseconds(), zap.Error(err), zap.String("component", "database"))
+		logger.LogDuration(
+			log,
+			"database_ping",
+			time.Since(pingStart).Milliseconds(),
+			zap.Error(err),
+			zap.String("component", "database"),
+		)
 		return nil, fmt.Errorf("unable to connect to database: %v", err)
 	}
 

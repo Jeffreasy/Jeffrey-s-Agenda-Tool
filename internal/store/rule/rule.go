@@ -38,7 +38,10 @@ func NewRuleStore(pool *pgxpool.Pool) *RuleStore {
 }
 
 // CreateAutomationRule creates a new automation rule.
-func (s *RuleStore) CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) {
+func (s *RuleStore) CreateAutomationRule(
+	ctx context.Context,
+	arg CreateAutomationRuleParams,
+) (domain.AutomationRule, error) {
 	query := `
     INSERT INTO automation_rules (
         connected_account_id, name, trigger_conditions, action_params

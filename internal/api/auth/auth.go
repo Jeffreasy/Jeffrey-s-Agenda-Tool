@@ -88,27 +88,43 @@ func HandleGoogleCallback(storer store.Storer, oauthConfig *oauth2.Config, log *
 		code := r.URL.Query().Get("code")
 		token, err := oauthConfig.Exchange(ctx, code)
 		if err != nil {
-			// AANGEPAST: log meegegeven
-			common.WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon code niet inwisselen: %s", err.Error()), log)
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				fmt.Sprintf("Kon code niet inwisselen: %s", err.Error()),
+				log,
+			)
 			return
 		}
 		if token.RefreshToken == "" {
-			// AANGEPAST: log meegegeven
-			common.WriteJSONError(w, http.StatusBadRequest, "Geen refresh token ontvangen. Probeer opnieuw.", log)
+			common.WriteJSONError(
+				w,
+				http.StatusBadRequest,
+				"Geen refresh token ontvangen. Probeer opnieuw.",
+				log,
+			)
 			return
 		}
 
 		userInfo, err := getUserInfo(ctx, token)
 		if err != nil {
-			// AANGEPAST: log meegegeven
-			common.WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon gebruikersinfo niet ophalen: %s", err.Error()), log)
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				fmt.Sprintf("Kon gebruikersinfo niet ophalen: %s", err.Error()),
+				log,
+			)
 			return
 		}
 
 		user, err := storer.CreateUser(ctx, userInfo.Email, userInfo.Name)
 		if err != nil {
-			// AANGEPAST: log meegegeven
-			common.WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon gebruiker niet aanmaken: %s", err.Error()), log)
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				fmt.Sprintf("Kon gebruiker niet aanmaken: %s", err.Error()),
+				log,
+			)
 			return
 		}
 
@@ -125,20 +141,29 @@ func HandleGoogleCallback(storer store.Storer, oauthConfig *oauth2.Config, log *
 
 		account, err := storer.UpsertConnectedAccount(ctx, params)
 		if err != nil {
-			// AANGEPAST: log meegegeven
-			common.WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon account niet koppelen: %s", err.Error()), log)
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				fmt.Sprintf("Kon account niet koppelen: %s", err.Error()),
+				log,
+			)
 			return
 		}
 
-		// AANGEPAST: Gebruik gestructureerde logger
-		log.Info("Account gekoppeld",
+		log.Info(
+			"Account gekoppeld",
 			zap.String("account_id", account.ID.String()),
-			zap.String("user_id", user.ID.String()))
+			zap.String("user_id", user.ID.String()),
+		)
 
 		jwtString, err := generateJWT(user.ID)
 		if err != nil {
-			// AANGEPAST: log meegegeven
-			common.WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon authenticatie-token niet genereren: %s", err.Error()), log)
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				fmt.Sprintf("Kon authenticatie-token niet genereren: %s", err.Error()),
+				log,
+			)
 			return
 		}
 

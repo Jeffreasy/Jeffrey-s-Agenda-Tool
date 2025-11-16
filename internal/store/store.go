@@ -77,7 +77,12 @@ type Storer interface {
 	// Gmail message storage
 	StoreGmailMessage(ctx context.Context, arg StoreGmailMessageParams) error
 	StoreGmailThread(ctx context.Context, arg StoreGmailThreadParams) error
-	UpdateGmailMessageStatus(ctx context.Context, accountID uuid.UUID, messageID string, status domain.GmailMessageStatus) error
+	UpdateGmailMessageStatus(
+		ctx context.Context,
+		accountID uuid.UUID,
+		messageID string,
+		status domain.GmailMessageStatus,
+	) error
 	GetGmailMessagesForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.GmailMessage, error)
 
 	// Gmail sync tracking
@@ -124,8 +129,11 @@ func (s *DBStore) DeleteUser(ctx context.Context, userID uuid.UUID) error {
 
 // --- ACCOUNT FUNCTIES ---
 
-// UpsertConnectedAccount versleutelt de tokens en slaat het account op (upsert)
-func (s *DBStore) UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error) {
+// UpsertConnectedAccount versleutelt de tokens en slaat het account op (upsert).
+func (s *DBStore) UpsertConnectedAccount(
+	ctx context.Context,
+	arg UpsertConnectedAccountParams,
+) (domain.ConnectedAccount, error) {
 	return s.accountStore.UpsertConnectedAccount(ctx, arg)
 }
 
@@ -167,7 +175,10 @@ func (s *DBStore) DeleteConnectedAccount(ctx context.Context, accountID uuid.UUI
 // --- RULE FUNCTIES ---
 
 // CreateAutomationRule creates a new automation rule.
-func (s *DBStore) CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) {
+func (s *DBStore) CreateAutomationRule(
+	ctx context.Context,
+	arg CreateAutomationRuleParams,
+) (domain.AutomationRule, error) {
 	return s.ruleStore.CreateAutomationRule(ctx, arg)
 }
 
@@ -219,7 +230,11 @@ func (s *DBStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, trigge
 }
 
 // GetLogsForAccount haalt de meest recente logs op voor een account.
-func (s *DBStore) GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error) {
+func (s *DBStore) GetLogsForAccount(
+	ctx context.Context,
+	accountID uuid.UUID,
+	limit int,
+) ([]domain.AutomationLog, error) {
 	return s.logStore.GetLogsForAccount(ctx, accountID, limit)
 }
 
@@ -238,18 +253,27 @@ func (s *DBStore) UpdateConnectedAccountToken(ctx context.Context, params Update
 
 // --- GMAIL AUTOMATION RULE METHODS ---
 
-// CreateGmailAutomationRule creates a new Gmail automation rule
-func (s *DBStore) CreateGmailAutomationRule(ctx context.Context, arg CreateGmailAutomationRuleParams) (domain.GmailAutomationRule, error) {
+// CreateGmailAutomationRule creates a new Gmail automation rule.
+func (s *DBStore) CreateGmailAutomationRule(
+	ctx context.Context,
+	arg CreateGmailAutomationRuleParams,
+) (domain.GmailAutomationRule, error) {
 	return s.gmailStore.CreateGmailAutomationRule(ctx, arg)
 }
 
-// GetGmailRulesForAccount gets all Gmail automation rules for an account
-func (s *DBStore) GetGmailRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.GmailAutomationRule, error) {
+// GetGmailRulesForAccount gets all Gmail automation rules for an account.
+func (s *DBStore) GetGmailRulesForAccount(
+	ctx context.Context,
+	accountID uuid.UUID,
+) ([]domain.GmailAutomationRule, error) {
 	return s.gmailStore.GetGmailRulesForAccount(ctx, accountID)
 }
 
-// UpdateGmailRule updates an existing Gmail automation rule
-func (s *DBStore) UpdateGmailRule(ctx context.Context, arg UpdateGmailRuleParams) (domain.GmailAutomationRule, error) {
+// UpdateGmailRule updates an existing Gmail automation rule.
+func (s *DBStore) UpdateGmailRule(
+	ctx context.Context,
+	arg UpdateGmailRuleParams,
+) (domain.GmailAutomationRule, error) {
 	return s.gmailStore.UpdateGmailRule(ctx, arg)
 }
 
@@ -275,24 +299,41 @@ func (s *DBStore) StoreGmailThread(ctx context.Context, arg StoreGmailThreadPara
 	return s.gmailStore.StoreGmailThread(ctx, arg)
 }
 
-// UpdateGmailMessageStatus updates the status of a Gmail message
-func (s *DBStore) UpdateGmailMessageStatus(ctx context.Context, accountID uuid.UUID, messageID string, status domain.GmailMessageStatus) error {
+// UpdateGmailMessageStatus updates the status of a Gmail message.
+func (s *DBStore) UpdateGmailMessageStatus(
+	ctx context.Context,
+	accountID uuid.UUID,
+	messageID string,
+	status domain.GmailMessageStatus,
+) error {
 	return s.gmailStore.UpdateGmailMessageStatus(ctx, accountID, messageID, status)
 }
 
-// GetGmailMessagesForAccount gets recent Gmail messages for an account
-func (s *DBStore) GetGmailMessagesForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.GmailMessage, error) {
+// GetGmailMessagesForAccount gets recent Gmail messages for an account.
+func (s *DBStore) GetGmailMessagesForAccount(
+	ctx context.Context,
+	accountID uuid.UUID,
+	limit int,
+) ([]domain.GmailMessage, error) {
 	return s.gmailStore.GetGmailMessagesForAccount(ctx, accountID, limit)
 }
 
 // --- GMAIL SYNC STATE METHODS ---
 
-// UpdateGmailSyncState updates the Gmail sync state for an account
-func (s *DBStore) UpdateGmailSyncState(ctx context.Context, accountID uuid.UUID, historyID string, lastSync time.Time) error {
+// UpdateGmailSyncState updates the Gmail sync state for an account.
+func (s *DBStore) UpdateGmailSyncState(
+	ctx context.Context,
+	accountID uuid.UUID,
+	historyID string,
+	lastSync time.Time,
+) error {
 	return s.gmailStore.UpdateGmailSyncState(ctx, accountID, historyID, lastSync)
 }
 
-// GetGmailSyncState gets the Gmail sync state for an account
-func (s *DBStore) GetGmailSyncState(ctx context.Context, accountID uuid.UUID) (historyID *string, lastSync *time.Time, err error) {
+// GetGmailSyncState gets the Gmail sync state for an account.
+func (s *DBStore) GetGmailSyncState(
+	ctx context.Context,
+	accountID uuid.UUID,
+) (historyID *string, lastSync *time.Time, err error) {
 	return s.gmailStore.GetGmailSyncState(ctx, accountID)
 }

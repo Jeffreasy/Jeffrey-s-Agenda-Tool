@@ -15,8 +15,12 @@ import (
 	"google.golang.org/api/gmail/v1"
 )
 
-// storeMessageInDB stores a Gmail message in the database
-func (gp *GmailProcessor) storeMessageInDB(ctx context.Context, acc domain.ConnectedAccount, message *gmail.Message) error {
+// storeMessageInDB stores a Gmail message in the database.
+func (gp *GmailProcessor) storeMessageInDB(
+	ctx context.Context,
+	acc domain.ConnectedAccount,
+	message *gmail.Message,
+) error {
 	subject := gp.getHeaderValue(message.Payload.Headers, "Subject")
 	sender := gp.getHeaderValue(message.Payload.Headers, "From")
 	snippet := message.Snippet
@@ -184,8 +188,14 @@ func (gp *GmailProcessor) logGmailAutomationSuccess(
 		ConnectedAccountID: accountID,
 		RuleID:             *ruleID,
 		Status:             domain.LogSuccess,
-		TriggerDetails:     json.RawMessage(fmt.Sprintf(`{"gmail_message_id": "%s", "gmail_thread_id": "%s"}`, messageID, threadID)),
-		ActionDetails:      json.RawMessage(fmt.Sprintf(`{"details": "%s"}`, details)),
+		TriggerDetails: json.RawMessage(
+			fmt.Sprintf(
+				`{"gmail_message_id": "%s", "gmail_thread_id": "%s"}`,
+				messageID,
+				threadID,
+			),
+		),
+		ActionDetails: json.RawMessage(fmt.Sprintf(`{"details": "%s"}`, details)),
 	}
 	gp.store.CreateAutomationLog(ctx, params)
 }
@@ -200,8 +210,14 @@ func (gp *GmailProcessor) logGmailAutomationFailure(
 		ConnectedAccountID: accountID,
 		RuleID:             *ruleID,
 		Status:             domain.LogFailure,
-		TriggerDetails:     json.RawMessage(fmt.Sprintf(`{"gmail_message_id": "%s", "gmail_thread_id": "%s"}`, messageID, threadID)),
-		ErrorMessage:       errorMsg,
+		TriggerDetails: json.RawMessage(
+			fmt.Sprintf(
+				`{"gmail_message_id": "%s", "gmail_thread_id": "%s"}`,
+				messageID,
+				threadID,
+			),
+		),
+		ErrorMessage: errorMsg,
 	}
 	gp.store.CreateAutomationLog(ctx, params)
 }

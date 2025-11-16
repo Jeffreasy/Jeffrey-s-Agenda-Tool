@@ -34,8 +34,11 @@ func (m *MockStore) DeleteUser(ctx context.Context, userID uuid.UUID) error {
 	return args.Error(0)
 }
 
-// UpsertConnectedAccount mocks the UpsertConnectedAccount method
-func (m *MockStore) UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error) {
+// UpsertConnectedAccount mocks the UpsertConnectedAccount method.
+func (m *MockStore) UpsertConnectedAccount(
+	ctx context.Context,
+	arg UpsertConnectedAccountParams,
+) (domain.ConnectedAccount, error) {
 	args := m.Called(ctx, arg)
 	return args.Get(0).(domain.ConnectedAccount), args.Error(1)
 }
@@ -88,8 +91,11 @@ func (m *MockStore) VerifyAccountOwnership(ctx context.Context, accountID uuid.U
 	return args.Error(0)
 }
 
-// CreateAutomationRule mocks the CreateAutomationRule method
-func (m *MockStore) CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) {
+// CreateAutomationRule mocks the CreateAutomationRule method.
+func (m *MockStore) CreateAutomationRule(
+	ctx context.Context,
+	arg CreateAutomationRuleParams,
+) (domain.AutomationRule, error) {
 	args := m.Called(ctx, arg)
 	return args.Get(0).(domain.AutomationRule), args.Error(1)
 }
@@ -142,8 +148,12 @@ func (m *MockStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, trig
 	return args.Bool(0), args.Error(1)
 }
 
-// GetLogsForAccount mocks the GetLogsForAccount method
-func (m *MockStore) GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error) {
+// GetLogsForAccount mocks the GetLogsForAccount method.
+func (m *MockStore) GetLogsForAccount(
+	ctx context.Context,
+	accountID uuid.UUID,
+	limit int,
+) ([]domain.AutomationLog, error) {
 	args := m.Called(ctx, accountID, limit)
 	return args.Get(0).([]domain.AutomationLog), args.Error(1)
 }
@@ -160,20 +170,29 @@ func (m *MockStore) UpdateConnectedAccountToken(ctx context.Context, params Upda
 	return args.Error(0)
 }
 
-// CreateGmailAutomationRule mocks the CreateGmailAutomationRule method
-func (m *MockStore) CreateGmailAutomationRule(ctx context.Context, arg CreateGmailAutomationRuleParams) (domain.GmailAutomationRule, error) {
+// CreateGmailAutomationRule mocks the CreateGmailAutomationRule method.
+func (m *MockStore) CreateGmailAutomationRule(
+	ctx context.Context,
+	arg CreateGmailAutomationRuleParams,
+) (domain.GmailAutomationRule, error) {
 	args := m.Called(ctx, arg)
 	return args.Get(0).(domain.GmailAutomationRule), args.Error(1)
 }
 
-// GetGmailRulesForAccount mocks the GetGmailRulesForAccount method
-func (m *MockStore) GetGmailRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.GmailAutomationRule, error) {
+// GetGmailRulesForAccount mocks the GetGmailRulesForAccount method.
+func (m *MockStore) GetGmailRulesForAccount(
+	ctx context.Context,
+	accountID uuid.UUID,
+) ([]domain.GmailAutomationRule, error) {
 	args := m.Called(ctx, accountID)
 	return args.Get(0).([]domain.GmailAutomationRule), args.Error(1)
 }
 
-// UpdateGmailRule mocks the UpdateGmailRule method
-func (m *MockStore) UpdateGmailRule(ctx context.Context, arg UpdateGmailRuleParams) (domain.GmailAutomationRule, error) {
+// UpdateGmailRule mocks the UpdateGmailRule method.
+func (m *MockStore) UpdateGmailRule(
+	ctx context.Context,
+	arg UpdateGmailRuleParams,
+) (domain.GmailAutomationRule, error) {
 	args := m.Called(ctx, arg)
 	return args.Get(0).(domain.GmailAutomationRule), args.Error(1)
 }
@@ -203,25 +222,42 @@ func (m *MockStore) StoreGmailThread(ctx context.Context, arg StoreGmailThreadPa
 }
 
 // UpdateGmailMessageStatus mocks the UpdateGmailMessageStatus method
-func (m *MockStore) UpdateGmailMessageStatus(ctx context.Context, accountID uuid.UUID, messageID string, status domain.GmailMessageStatus) error {
+func (m *MockStore) UpdateGmailMessageStatus(
+	ctx context.Context,
+	accountID uuid.UUID,
+	messageID string,
+	status domain.GmailMessageStatus,
+) error {
 	args := m.Called(ctx, accountID, messageID, status)
 	return args.Error(0)
 }
 
-// GetGmailMessagesForAccount mocks the GetGmailMessagesForAccount method
-func (m *MockStore) GetGmailMessagesForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.GmailMessage, error) {
+// GetGmailMessagesForAccount mocks the GetGmailMessagesForAccount method.
+func (m *MockStore) GetGmailMessagesForAccount(
+	ctx context.Context,
+	accountID uuid.UUID,
+	limit int,
+) ([]domain.GmailMessage, error) {
 	args := m.Called(ctx, accountID, limit)
 	return args.Get(0).([]domain.GmailMessage), args.Error(1)
 }
 
 // UpdateGmailSyncState mocks the UpdateGmailSyncState method
-func (m *MockStore) UpdateGmailSyncState(ctx context.Context, accountID uuid.UUID, historyID string, lastSync time.Time) error {
+func (m *MockStore) UpdateGmailSyncState(
+	ctx context.Context,
+	accountID uuid.UUID,
+	historyID string,
+	lastSync time.Time,
+) error {
 	args := m.Called(ctx, accountID, historyID, lastSync)
 	return args.Error(0)
 }
 
-// GetGmailSyncState mocks the GetGmailSyncState method
-func (m *MockStore) GetGmailSyncState(ctx context.Context, accountID uuid.UUID) (historyID *string, lastSync *time.Time, err error) {
+// GetGmailSyncState mocks the GetGmailSyncState method.
+func (m *MockStore) GetGmailSyncState(
+	ctx context.Context,
+	accountID uuid.UUID,
+) (historyID *string, lastSync *time.Time, err error) {
 	args := m.Called(ctx, accountID)
 	return args.Get(0).(*string), args.Get(1).(*time.Time), args.Error(2)
 }

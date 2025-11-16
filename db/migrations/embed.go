@@ -64,7 +64,7 @@ var ConnectedAccountsOptimizationUp string
 //go:embed 000006_connected_accounts_optimization.down.sql
 var ConnectedAccountsOptimizationDown string
 
-// Optioneel: als je ALLE sql-bestanden als een bestandssysteem wilt:
+// SQLFiles optionally contains all SQL files as a filesystem:
 //
 //go:embed *.sql
 var SQLFiles embed.FS

@@ -63,8 +63,11 @@ func NewAccountStore(pool *pgxpool.Pool, oauthCfg *oauth2.Config, logger *zap.Lo
 	}
 }
 
-// UpsertConnectedAccount versleutelt de tokens en slaat het account op (upsert)
-func (s *AccountStore) UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error) {
+// UpsertConnectedAccount versleutelt de tokens en slaat het account op (upsert).
+func (s *AccountStore) UpsertConnectedAccount(
+	ctx context.Context,
+	arg UpsertConnectedAccountParams,
+) (domain.ConnectedAccount, error) {
 
 	encryptedAccessToken, err := crypto.Encrypt([]byte(arg.AccessToken))
 	if err != nil {
@@ -94,7 +97,9 @@ func (s *AccountStore) UpsertConnectedAccount(ctx context.Context, arg UpsertCon
         scopes = EXCLUDED.scopes,
         status = 'active',
         updated_at = now()
-    RETURNING id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at, last_checked;
+    RETURNING id, user_id, provider, email, provider_user_id,
+        access_token, refresh_token, token_expiry, scopes, status,
+        created_at, updated_at, last_checked;
     `
 
 	row := s.pool.QueryRow(ctx, query,
@@ -135,7 +140,9 @@ func (s *AccountStore) UpsertConnectedAccount(ctx context.Context, arg UpsertCon
 // GetConnectedAccountByID ...
 func (s *AccountStore) GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (domain.ConnectedAccount, error) {
 	query := `
-        SELECT id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status, created_at, updated_at, last_checked
+        SELECT id, user_id, provider, email, provider_user_id,
+            access_token, refresh_token, token_expiry, scopes, status,
+            created_at, updated_at, last_checked
         FROM connected_accounts
         WHERE id = $1
     `
@@ -371,8 +378,11 @@ func (s *AccountStore) UpdateAccountStatus(ctx context.Context, id uuid.UUID, st
 	return nil
 }
 
-// UpdateConnectedAccountToken update access/refresh token
-func (s *AccountStore) UpdateConnectedAccountToken(ctx context.Context, params UpdateConnectedAccountTokenParams) error {
+// UpdateConnectedAccountToken update access/refresh token.
+func (s *AccountStore) UpdateConnectedAccountToken(
+	ctx context.Context,
+	params UpdateConnectedAccountTokenParams,
+) error {
 	_, err := s.pool.Exec(ctx, `
 		UPDATE connected_accounts
 		SET access_token = $1, refresh_token = $2, token_expiry = $3, updated_at = now()
@@ -425,7 +435,12 @@ func (s *AccountStore) GetValidTokenForAccount(ctx context.Context, accountID uu
 	}
 
 	// 4. Token is verlopen, ververs het
-	s.logger.Info("token expired, refreshing", zap.String("account_id", acc.ID.String()), zap.String("user_id", acc.UserID.String()), zap.String("component", "store"))
+	s.logger.Info(
+		"token expired, refreshing",
+		zap.String("account_id", acc.ID.String()),
+		zap.String("user_id", acc.UserID.String()),
+		zap.String("component", "store"),
+	)
 
 	// BELANGRIJK: Gebruik context.Background() voor de externe refresh-call.
 	// De 'ctx' van de caller kan de 'Authorization' header van de API request bevatten,
@@ -437,9 +452,18 @@ func (s *AccountStore) GetValidTokenForAccount(ctx context.Context, accountID uu
 	if err != nil {
 		// Vang 'invalid_grant'
 		if strings.Contains(err.Error(), "invalid_grant") {
-			s.logger.Error("access revoked for account, setting status to revoked", zap.String("account_id", acc.ID.String()), zap.String("component", "store"))
+			s.logger.Error(
+				"access revoked for account, setting status to revoked",
+				zap.String("account_id", acc.ID.String()),
+				zap.String("component", "store"),
+			)
 			if err := s.UpdateAccountStatus(ctx, acc.ID, domain.StatusRevoked); err != nil {
-				s.logger.Error("failed to update status for revoked account", zap.Error(err), zap.String("account_id", acc.ID.String()), zap.String("component", "store"))
+				s.logger.Error(
+					"failed to update status for revoked account",
+					zap.Error(err),
+					zap.String("account_id", acc.ID.String()),
+					zap.String("component", "store"),
+				)
 			}
 			return nil, ErrTokenRevoked // Gooi specifieke error
 		}

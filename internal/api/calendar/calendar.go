@@ -36,15 +36,25 @@ func HandleCreateEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc 
 		}
 
 		ctx := r.Context()
-		client, err := common.GetCalendarClient(ctx, store, accountID, logger) // <-- AANGEPAST
+		client, err := common.GetCalendarClient(ctx, store, accountID, logger)
 		if err != nil {
-			common.WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren", logger) // <-- AANGEPAST
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				"Kon calendar client niet initialiseren",
+				logger,
+			)
 			return
 		}
 
 		createdEvent, err := client.Events.Insert(calendarID, &req).Do()
 		if err != nil {
-			common.WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon event niet creren: %v", err), logger) // <-- AANGEPAST
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				fmt.Sprintf("Kon event niet creren: %v", err),
+				logger,
+			)
 			return
 		}
 
@@ -75,15 +85,25 @@ func HandleUpdateEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc 
 		}
 
 		ctx := r.Context()
-		client, err := common.GetCalendarClient(ctx, store, accountID, logger) // <-- AANGEPAST
+		client, err := common.GetCalendarClient(ctx, store, accountID, logger)
 		if err != nil {
-			common.WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren", logger) // <-- AANGEPAST
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				"Kon calendar client niet initialiseren",
+				logger,
+			)
 			return
 		}
 
 		updatedEvent, err := client.Events.Update(calendarID, eventID, &req).Do()
 		if err != nil {
-			common.WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon event niet updaten: %v", err), logger) // <-- AANGEPAST
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				fmt.Sprintf("Kon event niet updaten: %v", err),
+				logger,
+			)
 			return
 		}
 
@@ -108,15 +128,25 @@ func HandleDeleteEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc 
 		}
 
 		ctx := r.Context()
-		client, err := common.GetCalendarClient(ctx, store, accountID, logger) // <-- AANGEPAST
+		client, err := common.GetCalendarClient(ctx, store, accountID, logger)
 		if err != nil {
-			common.WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren", logger) // <-- AANGEPAST
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				"Kon calendar client niet initialiseren",
+				logger,
+			)
 			return
 		}
 
 		err = client.Events.Delete(calendarID, eventID).Do()
 		if err != nil {
-			common.WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon event niet verwijderen: %v", err), logger) // <-- AANGEPAST
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				fmt.Sprintf("Kon event niet verwijderen: %v", err),
+				logger,
+			)
 			return
 		}
 
@@ -158,10 +188,22 @@ func HandleGetCalendarEvents(store store.Storer, logger *zap.Logger) http.Handle
 		ctx := r.Context()
 		userID, _ := common.GetUserIDFromContext(ctx) // Get user ID for logging
 
-		client, err := common.GetCalendarClient(ctx, store, accountID, logger) // <-- AANGEPAST
+		client, err := common.GetCalendarClient(ctx, store, accountID, logger)
 		if err != nil {
-			logger.Error("failed to initialize calendar client", zap.Error(err), zap.String("account_id", accountID.String()), zap.String("user_id", userID.String()), zap.String("calendar_id", calendarID), zap.String("component", "api"))
-			common.WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren", logger) // <-- AANGEPAST
+			logger.Error(
+				"failed to initialize calendar client",
+				zap.Error(err),
+				zap.String("account_id", accountID.String()),
+				zap.String("user_id", userID.String()),
+				zap.String("calendar_id", calendarID),
+				zap.String("component", "api"),
+			)
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				"Kon calendar client niet initialiseren",
+				logger,
+			)
 			return
 		}
 
@@ -175,13 +217,34 @@ func HandleGetCalendarEvents(store store.Storer, logger *zap.Logger) http.Handle
 			Do()
 		if err != nil {
 			duration := time.Since(start)
-			logger.Error("failed to fetch calendar events", zap.Error(err), zap.String("account_id", accountID.String()), zap.String("user_id", userID.String()), zap.String("calendar_id", calendarID), zap.Int64("duration_ms", duration.Milliseconds()), zap.String("component", "api"))
-			common.WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon events niet ophalen: %v", err), logger) // <-- AANGEPAST
+			logger.Error(
+				"failed to fetch calendar events",
+				zap.Error(err),
+				zap.String("account_id", accountID.String()),
+				zap.String("user_id", userID.String()),
+				zap.String("calendar_id", calendarID),
+				zap.Int64("duration_ms", duration.Milliseconds()),
+				zap.String("component", "api"),
+			)
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				fmt.Sprintf("Kon events niet ophalen: %v", err),
+				logger,
+			)
 			return
 		}
 
 		duration := time.Since(start)
-		logger.Info("successfully fetched calendar events", zap.String("account_id", accountID.String()), zap.String("user_id", userID.String()), zap.String("calendar_id", calendarID), zap.Int("event_count", len(events.Items)), zap.Int64("duration_ms", duration.Milliseconds()), zap.String("component", "api"))
+		logger.Info(
+			"successfully fetched calendar events",
+			zap.String("account_id", accountID.String()),
+			zap.String("user_id", userID.String()),
+			zap.String("calendar_id", calendarID),
+			zap.Int("event_count", len(events.Items)),
+			zap.Int64("duration_ms", duration.Milliseconds()),
+			zap.String("component", "api"),
+		)
 
 		common.WriteJSON(w, http.StatusOK, events.Items, logger) // <-- AANGEPAST
 	}
@@ -200,10 +263,21 @@ func HandleListCalendars(store store.Storer, logger *zap.Logger) http.HandlerFun
 		ctx := r.Context()
 		userID, _ := common.GetUserIDFromContext(ctx) // Get user ID for logging
 
-		client, err := common.GetCalendarClient(ctx, store, accountID, logger) // <-- AANGEPAST
+		client, err := common.GetCalendarClient(ctx, store, accountID, logger)
 		if err != nil {
-			logger.Error("failed to initialize calendar client", zap.Error(err), zap.String("account_id", accountID.String()), zap.String("user_id", userID.String()), zap.String("component", "api"))
-			common.WriteJSONError(w, http.StatusInternalServerError, "Kon calendar client niet initialiseren", logger) // <-- AANGEPAST
+			logger.Error(
+				"failed to initialize calendar client",
+				zap.Error(err),
+				zap.String("account_id", accountID.String()),
+				zap.String("user_id", userID.String()),
+				zap.String("component", "api"),
+			)
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				"Kon calendar client niet initialiseren",
+				logger,
+			)
 			return
 		}
 
@@ -211,13 +285,32 @@ func HandleListCalendars(store store.Storer, logger *zap.Logger) http.HandlerFun
 		calendars, err := client.CalendarList.List().Do()
 		if err != nil {
 			duration := time.Since(start)
-			logger.Error("failed to fetch calendars", zap.Error(err), zap.String("account_id", accountID.String()), zap.String("user_id", userID.String()), zap.Int64("duration_ms", duration.Milliseconds()), zap.String("component", "api"))
-			common.WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon calendars niet ophalen: %v", err), logger) // <-- AANGEPAST
+			logger.Error(
+				"failed to fetch calendars",
+				zap.Error(err),
+				zap.String("account_id", accountID.String()),
+				zap.String("user_id", userID.String()),
+				zap.Int64("duration_ms", duration.Milliseconds()),
+				zap.String("component", "api"),
+			)
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				fmt.Sprintf("Kon calendars niet ophalen: %v", err),
+				logger,
+			)
 			return
 		}
 
 		duration := time.Since(start)
-		logger.Info("successfully fetched calendars", zap.String("account_id", accountID.String()), zap.String("user_id", userID.String()), zap.Int("calendar_count", len(calendars.Items)), zap.Int64("duration_ms", duration.Milliseconds()), zap.String("component", "api"))
+		logger.Info(
+			"successfully fetched calendars",
+			zap.String("account_id", accountID.String()),
+			zap.String("user_id", userID.String()),
+			zap.Int("calendar_count", len(calendars.Items)),
+			zap.Int64("duration_ms", duration.Milliseconds()),
+			zap.String("component", "api"),
+		)
 
 		common.WriteJSON(w, http.StatusOK, calendars.Items, logger) // <-- AANGEPAST
 	}

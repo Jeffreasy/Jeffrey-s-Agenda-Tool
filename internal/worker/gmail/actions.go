@@ -10,8 +10,14 @@ import (
 	"google.golang.org/api/gmail/v1"
 )
 
-// Action implementations
-func (gp *GmailProcessor) executeAutoReply(_ context.Context, srv *gmail.Service, acc domain.ConnectedAccount, message *gmail.Message, rule domain.GmailAutomationRule) error {
+// Action implementations.
+func (gp *GmailProcessor) executeAutoReply(
+	_ context.Context,
+	srv *gmail.Service,
+	acc domain.ConnectedAccount,
+	message *gmail.Message,
+	rule domain.GmailAutomationRule,
+) error {
 	var params struct {
 		ReplyText string `json:"reply_text"`
 	}
@@ -28,7 +34,13 @@ func (gp *GmailProcessor) executeAutoReply(_ context.Context, srv *gmail.Service
 	return err
 }
 
-func (gp *GmailProcessor) executeAddLabel(_ context.Context, srv *gmail.Service, _ domain.ConnectedAccount, message *gmail.Message, rule domain.GmailAutomationRule) error {
+func (gp *GmailProcessor) executeAddLabel(
+	_ context.Context,
+	srv *gmail.Service,
+	_ domain.ConnectedAccount,
+	message *gmail.Message,
+	rule domain.GmailAutomationRule,
+) error {
 	var params struct {
 		LabelName string `json:"label_name"`
 	}
@@ -49,7 +61,13 @@ func (gp *GmailProcessor) executeAddLabel(_ context.Context, srv *gmail.Service,
 	return err
 }
 
-func (gp *GmailProcessor) executeRemoveLabel(_ context.Context, srv *gmail.Service, _ domain.ConnectedAccount, message *gmail.Message, rule domain.GmailAutomationRule) error {
+func (gp *GmailProcessor) executeRemoveLabel(
+	_ context.Context,
+	srv *gmail.Service,
+	_ domain.ConnectedAccount,
+	message *gmail.Message,
+	rule domain.GmailAutomationRule,
+) error {
 	var params struct {
 		LabelName string `json:"label_name"`
 	}
@@ -70,7 +88,13 @@ func (gp *GmailProcessor) executeRemoveLabel(_ context.Context, srv *gmail.Servi
 	return err
 }
 
-func (gp *GmailProcessor) executeMarkRead(_ context.Context, srv *gmail.Service, _ domain.ConnectedAccount, message *gmail.Message, _ domain.GmailAutomationRule) error {
+func (gp *GmailProcessor) executeMarkRead(
+	_ context.Context,
+	srv *gmail.Service,
+	_ domain.ConnectedAccount,
+	message *gmail.Message,
+	_ domain.GmailAutomationRule,
+) error {
 	modifyRequest := &gmail.ModifyMessageRequest{
 		RemoveLabelIds: []string{"UNREAD"},
 	}
@@ -78,7 +102,13 @@ func (gp *GmailProcessor) executeMarkRead(_ context.Context, srv *gmail.Service,
 	return err
 }
 
-func (gp *GmailProcessor) executeMarkUnread(_ context.Context, srv *gmail.Service, _ domain.ConnectedAccount, message *gmail.Message, _ domain.GmailAutomationRule) error {
+func (gp *GmailProcessor) executeMarkUnread(
+	_ context.Context,
+	srv *gmail.Service,
+	_ domain.ConnectedAccount,
+	message *gmail.Message,
+	_ domain.GmailAutomationRule,
+) error {
 	modifyRequest := &gmail.ModifyMessageRequest{
 		AddLabelIds: []string{"UNREAD"},
 	}
@@ -86,7 +116,13 @@ func (gp *GmailProcessor) executeMarkUnread(_ context.Context, srv *gmail.Servic
 	return err
 }
 
-func (gp *GmailProcessor) executeArchive(_ context.Context, srv *gmail.Service, _ domain.ConnectedAccount, message *gmail.Message, _ domain.GmailAutomationRule) error {
+func (gp *GmailProcessor) executeArchive(
+	_ context.Context,
+	srv *gmail.Service,
+	_ domain.ConnectedAccount,
+	message *gmail.Message,
+	_ domain.GmailAutomationRule,
+) error {
 	modifyRequest := &gmail.ModifyMessageRequest{
 		RemoveLabelIds: []string{"INBOX"},
 	}
@@ -94,7 +130,13 @@ func (gp *GmailProcessor) executeArchive(_ context.Context, srv *gmail.Service, 
 	return err
 }
 
-func (gp *GmailProcessor) executeTrash(_ context.Context, srv *gmail.Service, _ domain.ConnectedAccount, message *gmail.Message, _ domain.GmailAutomationRule) error {
+func (gp *GmailProcessor) executeTrash(
+	_ context.Context,
+	srv *gmail.Service,
+	_ domain.ConnectedAccount,
+	message *gmail.Message,
+	_ domain.GmailAutomationRule,
+) error {
 	modifyRequest := &gmail.ModifyMessageRequest{
 		AddLabelIds: []string{"TRASH"},
 	}
@@ -102,7 +144,13 @@ func (gp *GmailProcessor) executeTrash(_ context.Context, srv *gmail.Service, _ 
 	return err
 }
 
-func (gp *GmailProcessor) executeStar(_ context.Context, srv *gmail.Service, _ domain.ConnectedAccount, message *gmail.Message, _ domain.GmailAutomationRule) error {
+func (gp *GmailProcessor) executeStar(
+	_ context.Context,
+	srv *gmail.Service,
+	_ domain.ConnectedAccount,
+	message *gmail.Message,
+	_ domain.GmailAutomationRule,
+) error {
 	modifyRequest := &gmail.ModifyMessageRequest{
 		AddLabelIds: []string{"STARRED"},
 	}
@@ -110,7 +158,13 @@ func (gp *GmailProcessor) executeStar(_ context.Context, srv *gmail.Service, _ d
 	return err
 }
 
-func (gp *GmailProcessor) executeUnstar(_ context.Context, srv *gmail.Service, _ domain.ConnectedAccount, message *gmail.Message, _ domain.GmailAutomationRule) error {
+func (gp *GmailProcessor) executeUnstar(
+	_ context.Context,
+	srv *gmail.Service,
+	_ domain.ConnectedAccount,
+	message *gmail.Message,
+	_ domain.GmailAutomationRule,
+) error {
 	modifyRequest := &gmail.ModifyMessageRequest{
 		RemoveLabelIds: []string{"STARRED"},
 	}
@@ -118,8 +172,14 @@ func (gp *GmailProcessor) executeUnstar(_ context.Context, srv *gmail.Service, _
 	return err
 }
 
-// Simplified implementations
-func (gp *GmailProcessor) executeForward(_ context.Context, _ *gmail.Service, _ domain.ConnectedAccount, _ *gmail.Message, _ domain.GmailAutomationRule) error {
+// Simplified implementations.
+func (gp *GmailProcessor) executeForward(
+	_ context.Context,
+	_ *gmail.Service,
+	_ domain.ConnectedAccount,
+	_ *gmail.Message,
+	_ domain.GmailAutomationRule,
+) error {
 	log.Printf("[Gmail] Forward action not yet implemented")
 	return nil
 }

@@ -110,7 +110,9 @@ func TestDatabaseIntegration(t *testing.T) {
 		accountID := uuid.New()
 		_, err = pool.Exec(ctx, `INSERT INTO connected_accounts (
 			id, user_id, provider, email, provider_user_id, access_token, refresh_token, token_expiry, scopes, status
-		) VALUES ($1, $2, 'google', 'acc@test.com', '123', 'dummy_token', 'dummy_refresh', now() + interval '1 hour', ARRAY['gmail'], 'active')`, accountID, user.ID)
+		) VALUES ($1, $2, 'google', 'acc@test.com', '123', 'dummy_token',
+			'dummy_refresh', now() + interval '1 hour', ARRAY['gmail'], 'active')`,
+			accountID, user.ID)
 		require.NoError(t, err)
 
 		ruleParams := CreateGmailAutomationRuleParams{

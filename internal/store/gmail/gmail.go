@@ -80,8 +80,11 @@ func NewGmailStore(db database.Querier, log *zap.Logger) *GmailStore {
 	}
 }
 
-// CreateGmailAutomationRule creates a new Gmail automation rule
-func (s *GmailStore) CreateGmailAutomationRule(ctx context.Context, arg CreateGmailAutomationRuleParams) (domain.GmailAutomationRule, error) {
+// CreateGmailAutomationRule creates a new Gmail automation rule.
+func (s *GmailStore) CreateGmailAutomationRule(
+	ctx context.Context,
+	arg CreateGmailAutomationRuleParams,
+) (domain.GmailAutomationRule, error) {
 	query := `
 		INSERT INTO gmail_automation_rules (
 			connected_account_id, name, description, is_active, trigger_type,
@@ -150,8 +153,11 @@ func (s *GmailStore) GetGmailRulesForAccount(
 	return rules, nil
 }
 
-// UpdateGmailRule updates an existing Gmail automation rule
-func (s *GmailStore) UpdateGmailRule(ctx context.Context, arg UpdateGmailRuleParams) (domain.GmailAutomationRule, error) {
+// UpdateGmailRule updates an existing Gmail automation rule.
+func (s *GmailStore) UpdateGmailRule(
+	ctx context.Context,
+	arg UpdateGmailRuleParams,
+) (domain.GmailAutomationRule, error) {
 	query := `
 		UPDATE gmail_automation_rules
 		SET name = $1, description = $2, trigger_type = $3, trigger_conditions = $4,

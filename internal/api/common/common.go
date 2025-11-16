@@ -36,7 +36,12 @@ func WriteJSON(w http.ResponseWriter, status int, data interface{}, logger *zap.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		logger.Error("failed to write JSON response", zap.Error(err), zap.Int("status", status), zap.String("component", "api"))
+		logger.Error(
+			"failed to write JSON response",
+			zap.Error(err),
+			zap.Int("status", status),
+			zap.String("component", "api"),
+		)
 	}
 }
 
@@ -45,8 +50,13 @@ func WriteJSONError(w http.ResponseWriter, status int, message string, logger *z
 	WriteJSON(w, status, map[string]string{"error": message}, logger)
 }
 
-// GetCalendarClient initialiseert een Google Calendar client met token refresh
-func GetCalendarClient(ctx context.Context, store store.Storer, accountID uuid.UUID, logger *zap.Logger) (*calendar.Service, error) {
+// GetCalendarClient initialiseert een Google Calendar client met token refresh.
+func GetCalendarClient(
+	ctx context.Context,
+	store store.Storer,
+	accountID uuid.UUID,
+	logger *zap.Logger,
+) (*calendar.Service, error) {
 	// BELANGRIJK: Gebruik context.Background() voor externe calls,
 	// NIET de 'ctx' van de request, om header-vervuiling te voorkomen.
 	cleanCtx := context.Background()
@@ -55,7 +65,12 @@ func GetCalendarClient(ctx context.Context, store store.Storer, accountID uuid.U
 	// GECORRIGEERD: 'E' verwijderd
 	token, err := store.GetValidTokenForAccount(ctx, accountID)
 	if err != nil {
-		logger.Error("failed to get valid token for calendar client", zap.Error(err), zap.String("account_id", accountID.String()), zap.String("component", "api"))
+		logger.Error(
+			"failed to get valid token for calendar client",
+			zap.Error(err),
+			zap.String("account_id", accountID.String()),
+			zap.String("component", "api"),
+		)
 		return nil, fmt.Errorf("kon geen geldig token voor account ophalen: %w", err)
 	}
 
@@ -65,9 +80,13 @@ func GetCalendarClient(ctx context.Context, store store.Storer, accountID uuid.U
 	return calendar.NewService(cleanCtx, option.WithHTTPClient(client))
 }
 
-// GetGmailClient initialiseert een Google Gmail client met token refresh
-// GECORRIGEERD: Accepteert nu 'logger *zap.Logger'
-func GetGmailClient(ctx context.Context, store store.Storer, accountID uuid.UUID, logger *zap.Logger) (*gmail.Service, error) {
+// GetGmailClient initialiseert een Google Gmail client met token refresh.
+func GetGmailClient(
+	ctx context.Context,
+	store store.Storer,
+	accountID uuid.UUID,
+	logger *zap.Logger,
+) (*gmail.Service, error) {
 	// BELANGRIJK: Gebruik context.Background() voor externe calls,
 	// NIET de 'ctx' van de request, om header-vervuiling te voorkomen.
 	cleanCtx := context.Background()
@@ -75,8 +94,12 @@ func GetGmailClient(ctx context.Context, store store.Storer, accountID uuid.UUID
 	// 1. Haal het token op (deze functie gebruikt de DB context 'ctx', maar 'cleanCtx' voor de refresh)
 	token, err := store.GetValidTokenForAccount(ctx, accountID)
 	if err != nil {
-		// GECORRIGEERD: logger is nu beschikbaar
-		logger.Error("failed to get valid token for Gmail client", zap.Error(err), zap.String("account_id", accountID.String()), zap.String("component", "api"))
+		logger.Error(
+			"failed to get valid token for Gmail client",
+			zap.Error(err),
+			zap.String("account_id", accountID.String()),
+			zap.String("component", "api"),
+		)
 		return nil, fmt.Errorf("kon geen geldig token voor account ophalen: %w", err)
 	}
 
