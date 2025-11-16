@@ -568,6 +568,328 @@ Retrieve events from multiple connected accounts and calendars.
 
 ---
 
+### Gmail Management
+
+#### Get Gmail Messages
+
+Retrieve Gmail messages from a connected account.
+
+**Endpoint:** `GET /api/v1/accounts/{accountId}/gmail/messages`
+
+**Authentication:** Required (JWT token)
+
+**Description:** Fetches Gmail messages using the Gmail API. Supports search queries and label filtering.
+
+**Path Parameters:**
+- `accountId`: UUID of the connected account
+
+**Query Parameters:**
+- `q` (optional): Gmail search query (e.g., "from:example@gmail.com", "subject:meeting")
+- `labelIds` (optional): Comma-separated list of Gmail label IDs to filter by
+- `maxResults` (optional): Maximum number of messages to return (default: 50, max: 500)
+
+**Response (200 OK):**
+```json
+{
+  "messages": [
+    {
+      "id": "gmail_message_id",
+      "gmail_message_id": "gmail_message_id",
+      "gmail_thread_id": "gmail_thread_id",
+      "subject": "Meeting Reminder",
+      "sender": "sender@example.com",
+      "recipients": ["recipient@example.com"],
+      "cc_recipients": [],
+      "bcc_recipients": [],
+      "snippet": "This is a preview of the message...",
+      "body": "Full message body content...",
+      "status": "read",
+      "is_starred": false,
+      "has_attachments": true,
+      "attachment_count": 1,
+      "size_estimate": 1024,
+      "received_at": "2025-11-15T10:00:00Z",
+      "labels": ["INBOX", "IMPORTANT"],
+      "last_synced": "2025-11-15T10:00:00Z",
+      "created_at": "2025-11-15T10:00:00Z",
+      "updated_at": "2025-11-15T10:00:00Z"
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid account ID
+- `401 Unauthorized`: Missing or invalid JWT token
+- `404 Not Found`: Account not found
+- `500 Internal Server Error`: Gmail API error
+
+---
+
+#### Send Gmail Message
+
+Send an email using Gmail.
+
+**Endpoint:** `POST /api/v1/accounts/{accountId}/gmail/send`
+
+**Authentication:** Required (JWT token)
+
+**Description:** Sends an email through the connected Gmail account.
+
+**Path Parameters:**
+- `accountId`: UUID of the connected account
+
+**Request Body:**
+```json
+{
+  "to": ["recipient@example.com"],
+  "cc": ["cc@example.com"],
+  "bcc": ["bcc@example.com"],
+  "subject": "Email Subject",
+  "body": "Email body content",
+  "isHtml": false
+}
+```
+
+**Response (200 OK):** Gmail API message object
+
+**Error Responses:**
+- `400 Bad Request`: Invalid request body or account ID
+- `401 Unauthorized`: Missing or invalid JWT token
+- `404 Not Found`: Account not found
+- `500 Internal Server Error`: Failed to send email
+
+---
+
+#### Get Gmail Labels
+
+Retrieve Gmail labels for a connected account.
+
+**Endpoint:** `GET /api/v1/accounts/{accountId}/gmail/labels`
+
+**Authentication:** Required (JWT token)
+
+**Description:** Fetches all Gmail labels (folders/tags) for the connected account.
+
+**Path Parameters:**
+- `accountId`: UUID of the connected account
+
+**Response (200 OK):**
+```json
+{
+  "labels": [
+    {
+      "id": "INBOX",
+      "name": "INBOX",
+      "messageListVisibility": "show",
+      "labelListVisibility": "labelShow",
+      "type": "system"
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid account ID
+- `401 Unauthorized`: Missing or invalid JWT token
+- `404 Not Found`: Account not found
+- `500 Internal Server Error`: Gmail API error
+
+---
+
+#### Create Gmail Draft
+
+Create a Gmail draft message.
+
+**Endpoint:** `POST /api/v1/accounts/{accountId}/gmail/drafts`
+
+**Authentication:** Required (JWT token)
+
+**Description:** Creates a draft email in the connected Gmail account.
+
+**Path Parameters:**
+- `accountId`: UUID of the connected account
+
+**Request Body:**
+```json
+{
+  "to": ["recipient@example.com"],
+  "cc": ["cc@example.com"],
+  "bcc": ["bcc@example.com"],
+  "subject": "Draft Subject",
+  "body": "Draft body content",
+  "isHtml": false
+}
+```
+
+**Response (201 Created):** Gmail API draft object
+
+**Error Responses:**
+- `400 Bad Request`: Invalid request body or account ID
+- `401 Unauthorized`: Missing or invalid JWT token
+- `404 Not Found`: Account not found
+- `500 Internal Server Error`: Failed to create draft
+
+---
+
+#### Get Gmail Drafts
+
+Retrieve Gmail drafts for a connected account.
+
+**Endpoint:** `GET /api/v1/accounts/{accountId}/gmail/drafts`
+
+**Authentication:** Required (JWT token)
+
+**Description:** Fetches all Gmail drafts for the connected account.
+
+**Path Parameters:**
+- `accountId`: UUID of the connected account
+
+**Response (200 OK):**
+```json
+{
+  "drafts": [
+    {
+      "id": "draft_id",
+      "message": {
+        "id": "message_id",
+        "threadId": "thread_id",
+        "labelIds": ["DRAFT"],
+        "snippet": "Draft snippet...",
+        "payload": {...}
+      }
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid account ID
+- `401 Unauthorized`: Missing or invalid JWT token
+- `404 Not Found`: Account not found
+- `500 Internal Server Error`: Gmail API error
+
+---
+
+### Gmail Automation Rules Management
+
+#### Create Gmail Automation Rule
+
+Create a new Gmail automation rule.
+
+**Endpoint:** `POST /api/v1/accounts/{accountId}/gmail/rules`
+
+**Authentication:** Required (JWT token)
+
+**Description:** Creates an automation rule that processes incoming Gmail messages based on trigger conditions and executes specified actions.
+
+**Path Parameters:**
+- `accountId`: UUID of the connected account
+
+**Request Body:**
+```json
+{
+  "name": "Auto Reply to Important Emails",
+  "description": "Automatically reply to emails from important contacts",
+  "isActive": true,
+  "triggerType": "sender_match",
+  "triggerConditions": {
+    "senderPatterns": ["boss@company.com", "client@important.com"],
+    "subjectPatterns": ["urgent", "important"]
+  },
+  "actionType": "auto_reply",
+  "actionParams": {
+    "replyMessage": "Thank you for your email. I'll respond shortly.",
+    "markAsRead": true
+  },
+  "priority": 1
+}
+```
+
+**Trigger Types:**
+- `new_message`: Trigger on any new message
+- `sender_match`: Trigger when sender matches patterns
+- `subject_match`: Trigger when subject matches patterns
+- `label_added`: Trigger when specific label is added
+- `starred`: Trigger when message is starred
+
+**Action Types:**
+- `auto_reply`: Send automatic reply
+- `forward`: Forward message to another email
+- `add_label`: Add a label to the message
+- `remove_label`: Remove a label from the message
+- `mark_read`: Mark message as read
+- `mark_unread`: Mark message as unread
+- `archive`: Archive the message
+- `trash`: Move message to trash
+- `star`: Star the message
+- `unstar`: Unstar the message
+
+**Response (201 Created):**
+```json
+{
+  "id": "uuid",
+  "connected_account_id": "uuid",
+  "name": "Auto Reply to Important Emails",
+  "description": "Automatically reply to emails from important contacts",
+  "is_active": true,
+  "trigger_type": "sender_match",
+  "trigger_conditions": {...},
+  "action_type": "auto_reply",
+  "action_params": {...},
+  "priority": 1,
+  "created_at": "2025-11-15T19:00:00Z",
+  "updated_at": "2025-11-15T19:00:00Z"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid JSON or missing required fields
+- `401 Unauthorized`: Missing or invalid JWT token
+- `404 Not Found`: Account not found or doesn't belong to user
+
+---
+
+#### Get Gmail Automation Rules
+
+Retrieve all Gmail automation rules for a connected account.
+
+**Endpoint:** `GET /api/v1/accounts/{accountId}/gmail/rules`
+
+**Authentication:** Required (JWT token)
+
+**Description:** Returns all Gmail automation rules associated with the specified account.
+
+**Path Parameters:**
+- `accountId`: UUID of the connected account
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": "uuid",
+    "connected_account_id": "uuid",
+    "name": "Auto Reply to Important Emails",
+    "description": "Automatically reply to emails from important contacts",
+    "is_active": true,
+    "trigger_type": "sender_match",
+    "trigger_conditions": {...},
+    "action_type": "auto_reply",
+    "action_params": {...},
+    "priority": 1,
+    "created_at": "2025-11-15T19:00:00Z",
+    "updated_at": "2025-11-15T19:00:00Z"
+  }
+]
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid account ID
+- `401 Unauthorized`: Missing or invalid JWT token
+- `404 Not Found`: Account not found or doesn't belong to user
+
+---
+
 ### Health Check
 
 #### API Health Check

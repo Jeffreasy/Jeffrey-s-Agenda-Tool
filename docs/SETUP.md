@@ -14,12 +14,12 @@ This guide provides detailed instructions for setting up the Agenda Automator ba
 ### Required Software
 
 #### Go Programming Language
-- **Version:** 1.21 or higher
+- **Version:** 1.24.0 or higher
 - **Download:** https://go.dev/doc/install
 - **Verification:**
   ```bash
   go version
-  # Should output: go version go1.21.x or higher
+  # Should output: go version go1.24.x or higher
   ```
 
 #### Docker Desktop
@@ -43,7 +43,7 @@ This guide provides detailed instructions for setting up the Agenda Automator ba
 If using Git:
 ```bash
 git clone <repository-url>
-cd agenda-automator-backend
+cd AgendaTool/Jeffrey-s-Agenda-Tool BACKEND
 ```
 
 Or download and extract the ZIP file to your preferred location.
@@ -86,6 +86,9 @@ DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:
 # Must be exactly 32 characters (AES-256)
 ENCRYPTION_KEY="IJvSU0jEVrm3CBNzdAMoDRT9sQlnZcea"
 
+# JWT secret key (32+ characters recommended)
+JWT_SECRET_KEY="YOUR_SECURE_JWT_SECRET_KEY_32_CHARS_MIN"
+
 #---------------------------------------------------
 # 5. OAUTH CLIENTS (Google)
 #---------------------------------------------------
@@ -95,24 +98,44 @@ OAUTH_REDIRECT_URL="http://localhost:8080/api/v1/auth/google/callback"
 
 GOOGLE_OAUTH_CLIENT_ID="YOUR-CLIENT-ID-HERE.apps.googleusercontent.com"
 GOOGLE_OAUTH_CLIENT_SECRET="YOUR-CLIENT-SECRET-HERE"
+
+#---------------------------------------------------
+# 6. CORS CONFIGURATION
+#---------------------------------------------------
+# Allowed origins for CORS (comma-separated)
+ALLOWED_ORIGINS="http://localhost:3000,http://localhost:3001"
 ```
 
 **Important Notes:**
 - Change `POSTGRES_PASSWORD` to a secure password
 - The `ENCRYPTION_KEY` must be exactly 32 characters
+- The `JWT_SECRET_KEY` should be at least 32 characters for security
 - Replace Google OAuth credentials with real values from Google Cloud Console
+- Ensure all required Google APIs are enabled (Calendar, Gmail, People)
 
 ### 3. Google OAuth Setup
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select existing one
-3. Enable the Google Calendar API
+3. Enable the following APIs:
+   - Google Calendar API
+   - Gmail API
+   - Google People API (optional, for contacts)
 4. Create OAuth 2.0 credentials
 5. Add authorized redirect URIs:
     - `http://localhost:8080/api/v1/auth/google/callback`
 6. Copy Client ID and Client Secret to `.env`
 
 **Important:** The redirect URI must exactly match the `OAUTH_REDIRECT_URL` in your `.env` file. The backend handles the complete OAuth flow, so the redirect goes to the backend, not the frontend.
+
+**Required OAuth Scopes:** The application requires these Google API scopes:
+- `https://www.googleapis.com/auth/calendar` (Calendar access)
+- `https://www.googleapis.com/auth/calendar.events` (Calendar events)
+- `https://www.googleapis.com/auth/gmail.modify` (Full Gmail access)
+- `https://www.googleapis.com/auth/gmail.compose` (Create drafts)
+- `https://www.googleapis.com/auth/gmail.labels` (Manage labels)
+- `https://www.googleapis.com/auth/userinfo.email` (User email)
+- `https://www.googleapis.com/auth/userinfo.profile` (User profile)
 
 ## Database Setup
 
@@ -180,26 +203,30 @@ go run ./cmd/server
 
 **Expected Output:**
 ```
-2025/11/15 19:00:00 Successfully connected to database.
-2025/11/15 19:00:00 Starting worker...
-2025/11/15 19:00:00 Application starting API server on port 8080...
-2025/11/15 19:00:00 [Worker] Running work cycle...
-2025/11/15 19:00:00 [Worker] Found 0 active accounts to check.
+2025/11/16 15:00:00 Successfully connected to database.
+2025/11/16 15:00:00 Starting worker...
+2025/11/16 15:00:00 Application starting API server on port 8080...
+2025/11/16 15:00:00 [Worker] Running work cycle...
+2025/11/16 15:00:00 [Worker] Found 0 active accounts to check.
 ```
 
 ### Automation Processing Features
 
-The application includes **automated calendar processing** with the following capabilities:
+The application includes **dual-service automation processing** for both Google Calendar and Gmail with the following capabilities:
 
 - **Processing Frequency:** Every 2 minutes (regular batch processing)
 - **Coverage Window:** All events from 1970-2100 (comprehensive historical and future processing)
-- **Flexible Automation Rules:** User-configurable JSONB-based trigger conditions and actions
+- **Dual-Service Support:** Processes both Calendar events and Gmail messages
+- **Flexible Automation Rules:** User-configurable JSONB-based trigger conditions and actions for both services
 - **Smart Processing:**
-  - **Trigger Matching:** Summary text matching, location filtering
-  - **Action Execution:** Configurable reminder creation with custom titles and timing
+  - **Calendar Triggers:** Summary text matching, location filtering, time-based conditions
+  - **Gmail Triggers:** Sender matching, subject matching, label-based triggers
+  - **Action Execution:** Configurable reminder creation, email replies, label management
   - **Deduplication:** Prevents duplicate actions via comprehensive logging
-- **Reminder Creation:** Automatic event creation based on rule configurations
-- **Parallel Processing:** Handles multiple Google accounts simultaneously
+- **Calendar Automation:** Automatic event creation based on rule configurations
+- **Gmail Automation:** Auto-replies, forwarding, labeling, and status management
+- **Parallel Processing:** Handles multiple Google accounts simultaneously for both services
+- **Incremental Sync:** Gmail History API integration for efficient message processing
 
 ### Verify Installation
 
@@ -302,6 +329,12 @@ docker compose ps
 ### Unit Tests
 ```bash
 go test ./...
+```
+
+### Code Quality Checks
+```bash
+# Run linting and code quality checks
+golangci-lint run
 ```
 
 ### Integration Tests

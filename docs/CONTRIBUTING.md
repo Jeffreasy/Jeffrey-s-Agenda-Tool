@@ -29,8 +29,8 @@ This project follows a code of conduct to ensure a welcoming environment for all
 ```bash
 # Fork the repository on GitHub
 # Clone your fork
-git clone https://github.com/YOUR-USERNAME/agenda-automator-backend.git
-cd agenda-automator-backend
+git clone https://github.com/YOUR-USERNAME/AgendaTool.git
+cd AgendaTool/Jeffrey-s-Agenda-Tool BACKEND
 ```
 
 ### 2. Create a Feature Branch
@@ -89,12 +89,14 @@ git push origin feature/your-feature-name
 
 ### Go Code
 
-- Follow standard Go formatting: `go fmt`
+- Follow standard Go formatting: `go fmt` and `goimports`
+- Use `golangci-lint` for comprehensive code quality checks (configured in `.golangci.yml`)
 - Use `go vet` to check for common errors
 - Follow the [Effective Go](https://golang.org/doc/effective_go.html) guidelines
 - Use meaningful variable and function names
 - Add comments for exported functions and types
 - Keep functions small and focused
+- Use structured logging with zap
 
 ### Code Structure
 
@@ -169,25 +171,29 @@ func TestValidateEmail(t *testing.T) {
 
 ### Integration Tests
 
-- Test API endpoints with real database
-- Use build tags for integration tests
+- Test API endpoints with real PostgreSQL database using testcontainers
+- Use `-tags=integration` build tag to run integration tests
+- Integration tests run in CI on PRs to main/develop branches
 - Ensure tests are isolated and repeatable
 
 ### Running Tests
 
 ```bash
-# Run all tests
-go test ./...
-
-# Run with verbose output
+# Run unit tests
 go test -v ./...
 
-# Run specific package
-go test ./internal/api
+# Run tests with race detection
+go test -race -short ./...
+
+# Run integration tests (requires PostgreSQL)
+go test -tags=integration -v ./...
 
 # Run with coverage report
 go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
+
+# Run linting
+golangci-lint run
 ```
 
 ## Submitting Changes
@@ -200,12 +206,13 @@ go tool cover -html=coverage.out
    git rebase origin/main
    ```
 
-2. **Run full test suite**
-   ```bash
-   go test ./...
-   go vet ./...
-   go fmt ./...
-   ```
+2. **Run full test suite and quality checks**
+    ```bash
+    go test -v ./...
+    go test -race -short ./...
+    golangci-lint run
+    go build -v ./...
+    ```
 
 3. **Update documentation** if needed
    - Update README.md for new features
@@ -219,9 +226,19 @@ go tool cover -html=coverage.out
    - List any breaking changes
 
 5. **Code Review**
-   - Address reviewer feedback
-   - Make requested changes
-   - Ensure CI checks pass
+    - Address reviewer feedback
+    - Make requested changes
+    - Ensure CI checks pass
+
+### CI Checks
+
+The following automated checks run on every pull request:
+
+- **Unit Tests**: `go test -v ./...` and `go test -race -short ./...`
+- **Integration Tests**: `go test -tags=integration -v ./...` (on PRs to main/develop)
+- **Build Check**: `go build -v ./...`
+- **Linting**: `golangci-lint run` with 5-minute timeout
+- **Go Version**: 1.24.0 (matches go.mod requirement)
 
 ### Pull Request Template
 
@@ -243,8 +260,9 @@ Brief description of the changes.
 - [ ] Manual testing completed
 
 ## Checklist
-- [ ] Code follows project standards
-- [ ] Tests pass
+- [ ] Code follows project standards (`golangci-lint run` passes)
+- [ ] Tests pass (`go test -v ./...`)
+- [ ] Code builds successfully (`go build -v ./...`)
 - [ ] Documentation updated
 - [ ] No breaking changes
 ```

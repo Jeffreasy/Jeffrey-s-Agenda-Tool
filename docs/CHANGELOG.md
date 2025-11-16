@@ -8,26 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dual-service automation platform** supporting both Google Calendar and Gmail
 - **Automated calendar processing system** with 2-minute intervals
 - **Comprehensive calendar coverage** for all events (1970-2100)
 - **Flexible automation rules** with JSONB-based trigger conditions and actions
 - **Full calendar CRUD operations** via REST API (create, read, update, delete events)
 - **Aggregated calendar events** fetching from multiple accounts/calendars
 - **Comprehensive automation logging** with success/failure/skipped status tracking
+- **Complete Gmail integration** with message retrieval, sending, and management
+- **Gmail automation rules** with advanced trigger conditions (sender, subject, label matching)
+- **Gmail actions** including auto-reply, forwarding, label management, and status changes
+- **Gmail History API integration** for efficient incremental message synchronization
+- **Gmail drafts and labels management** via REST API
 - **JWT-based authentication** with 7-day token expiration
 - **Backend-driven OAuth 2.0 flow** with CSRF protection
-- **Complete REST API** with 16+ endpoints for full application functionality
-- **Parallel account processing** for multiple Google Calendar accounts
+- **Complete REST API** with 25+ endpoints for full application functionality
+- **Parallel account processing** for multiple Google accounts (Calendar + Gmail)
 - **Token refresh automation** with secure encrypted storage
 - **User management** via Google OAuth integration
-- **Connected accounts management** with status tracking
-- **Rule management** (CRUD operations for automation rules)
+- **Connected accounts management** with status tracking and Gmail sync controls
+- **Rule management** (CRUD operations for both Calendar and Gmail automation rules)
 - **Calendar list endpoint** (`GET /accounts/{accountId}/calendars`) for retrieving all accessible calendars
 - **Multi-calendar support** in frontend calendar view with fallback calendar IDs
 - **Health check endpoint** for monitoring
-- PostgreSQL database with comprehensive schema
+- PostgreSQL database with comprehensive schema including Gmail tables
 - Docker Compose setup for local development
-- Google Calendar API integration
+- Google Calendar and Gmail API integrations
 - Comprehensive documentation suite
 
 ### Changed
@@ -37,12 +43,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **OAuth flow**: Completely refactored from frontend-driven to secure backend-driven implementation
 - **API architecture**: Expanded from basic endpoints to comprehensive REST API with authentication
 - **Worker logic**: Enhanced with deduplication, comprehensive logging, and flexible rule processing
+- **Platform scope**: Extended from calendar-only to dual-service automation (Calendar + Gmail)
+- **OAuth scopes**: Expanded to include comprehensive Gmail API permissions
 
 ### Performance
-- **Parallel processing**: Multiple accounts processed simultaneously
+- **Parallel processing**: Multiple accounts processed simultaneously for both Calendar and Gmail
 - **Efficient querying**: Optimized database operations with proper indexing
 - **Token management**: Automated refresh prevents authentication failures
 - **Comprehensive coverage**: Processes unlimited historical and future events
+- **Gmail incremental sync**: History API integration reduces API calls and improves performance
+- **Smart deduplication**: Prevents duplicate actions across both Calendar and Gmail automation
 
 ### Security
 - **JWT authentication**: Secure token-based API access
@@ -63,12 +73,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive error handling
 
 ### Technical Details
-- Go 1.21+ compatibility
+- Go 1.24.0 compatibility
 - PostgreSQL database with pgx driver
-- Chi HTTP router
-- AES-256-GCM encryption for sensitive data
+- Chi HTTP router with CORS middleware
+- AES-256-GCM encryption for sensitive OAuth tokens
+- Structured logging with zap and file rotation
+- Google Calendar and Gmail API integrations
 - Docker containerization
 - golang-migrate for database migrations
+- Comprehensive test coverage with testify
 
 ---
 

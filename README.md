@@ -1,15 +1,18 @@
 # Agenda Automator - Backend
 
-Dit is de Go-backend voor de Agenda Automator. Het biedt een REST API voor het beheren van gebruikers en gekoppelde Google accounts en een achtergrond-worker die agenda's monitort.
+Dit is de Go-backend voor de Agenda Automator, een dual-service automation platform. Het biedt een REST API voor het beheren van gebruikers en gekoppelde Google accounts, en een achtergrond-worker die zowel Google Calendar als Gmail monitort en automatiseert.
 
 ## ✨ Features
 
-   * **REST API:** Een `chi`-gebaseerde API voor het beheren van `users` en `connected_accounts`.
+   * **REST API:** Een `chi`-gebaseerde API voor het beheren van `users`, `connected_accounts`, en automation rules.
    * **Backend-Driven OAuth:** Veilige OAuth 2.0 flow volledig afgehandeld door de backend met CSRF bescherming.
    * **Achtergrond Worker:** Een *long-running* goroutine die periodiek accounts controleert en tokens ververst.
    * **Veilig Tokenbeheer:** OAuth `access_token` en `refresh_token` worden versleuteld (AES-GCM) opgeslagen in de database.
    * **Automatisch Token Verversen:** De worker ververst automatisch verlopen Google OAuth-tokens.
-   * **Google Calendar Automation:** De worker past automatiseringsregels toe op agenda-events en creëert herinneringen.
+   * **Dual-Service Automation:** Automatiseert zowel Google Calendar events als Gmail messages.
+   * **Google Calendar Automation:** Past automatiseringsregels toe op agenda-events en creëert herinneringen.
+   * **Gmail Automation:** Auto-replies, forwarding, labeling, en status management voor email messages.
+   * **Incremental Sync:** Gmail History API voor efficiënte message processing.
    * **Database:** PostgreSQL-database met een robuust, gemigreerd schema.
    * **Containerized:** Inclusief `docker-compose.yml` voor het lokaal opzetten van Postgres.
 
@@ -30,6 +33,8 @@ De backend bestaat uit twee kerncomponenten die tegelijkertijd draaien:
        * Leest `connected_accounts` uit de database.
        * Controleert of tokens verlopen zijn en ververst ze (via Google OAuth).
        * Haalt agenda-items op en past automatiseringsregels toe om herinneringen te creëren.
+       * Verwerkt Gmail messages met incrementele sync via History API.
+       * Past Gmail automatiseringsregels toe voor auto-replies, forwarding, en labeling.
 
 Deze twee componenten communiceren *nooit* direct met elkaar. Ze delen alleen de **Database Store** (`/internal/store`).
 
@@ -41,7 +46,7 @@ Volg deze stappen om de backend lokaal op te zetten en te draaien.
 
 ### 1\. Vereisten
 
-  * [Go](https://go.dev/doc/install) (v1.21 of hoger)
+  * [Go](https://go.dev/doc/install) (v1.24.0 of hoger)
   * [Docker Desktop](https://www.docker.com/products/docker-desktop/) (voor Postgres)
 
 ### 2\. Configuratie (.env)
@@ -79,6 +84,15 @@ DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:
 #---------------------------------------------------
 # Moet exact 32 karakters lang zijn (AES-256)
 ENCRYPTION_KEY="IJvSU0jEVrm3CBNzdAMoDRT9sQlnZcea"
+
+# JWT secret key (32+ karakters aanbevolen)
+JWT_SECRET_KEY="JOUW_SECURE_JWT_SECRET_KEY_32_KARAKTERS_MIN"
+
+#---------------------------------------------------
+# 4. CORS CONFIGURATIE
+#---------------------------------------------------
+# Toegestane origins voor CORS (komma-gescheiden)
+ALLOWED_ORIGINS="http://localhost:3000,http://localhost:3001"
 
 #---------------------------------------------------
 # 5. OAUTH CLIENTS (Google)
@@ -134,11 +148,11 @@ go run cmd/server/main.go
 Je zou nu de volgende output moeten zien, wat aangeeft dat *zowel* de API als de Worker draaien:
 
 ```
-2025/11/11 18:00:00 Successfully connected to database.
-2025/11/11 18:00:00 Starting worker...
-2025/11/11 18:00:00 Application starting API server on port 8080...
-2025/11/11 18:00:00 [Worker] Running work cycle...
-2025/11/11 18:00:00 [Worker] Found 0 active accounts to check.
+2025/11/16 15:00:00 Successfully connected to database.
+2025/11/16 15:00:00 Starting worker...
+2025/11/16 15:00:00 Application starting API server on port 8080...
+2025/11/16 15:00:00 [Worker] Running work cycle...
+2025/11/16 15:00:00 [Worker] Found 0 active accounts to check.
 ```
 
 -----
@@ -202,17 +216,51 @@ De API is beschikbaar op `http://localhost:8080` en vereist JWT authenticatie vo
   * **Omschrijving:** Creëert een nieuw calendar event.
   * **Response (201 Created):** Created event object
 
+### Gmail Operations
+
+  * **Endpoint:** `GET /api/v1/accounts/{accountId}/gmail/messages` (vereist JWT)
+  * **Omschrijving:** Haalt Gmail messages op met zoekfunctionaliteit.
+  * **Response (200 OK):** Array van Gmail message objecten
+
+  * **Endpoint:** `POST /api/v1/accounts/{accountId}/gmail/send` (vereist JWT)
+  * **Omschrijving:** Verstuur een email via Gmail.
+  * **Response (200 OK):** Gmail API message object
+
+  * **Endpoint:** `GET /api/v1/accounts/{accountId}/gmail/labels` (vereist JWT)
+  * **Omschrijving:** Haalt Gmail labels op.
+  * **Response (200 OK):** Array van Gmail label objecten
+
+  * **Endpoint:** `POST /api/v1/accounts/{accountId}/gmail/drafts` (vereist JWT)
+  * **Omschrijving:** Creëert een Gmail draft.
+  * **Response (201 Created):** Gmail draft object
+
+### Gmail Automation Rules
+
+  * **Endpoint:** `POST /api/v1/accounts/{accountId}/gmail/rules` (vereist JWT)
+  * **Omschrijving:** Creëert een nieuwe Gmail automatiseringsregel.
+  * **Response (201 Created):** Rule object
+
+  * **Endpoint:** `GET /api/v1/accounts/{accountId}/gmail/rules` (vereist JWT)
+  * **Omschrijving:** Haalt Gmail automatiseringsregels op.
+  * **Response (200 OK):** Array van Gmail rule objecten
+
 -----
 
 ## 📁 Projectstructuur
 
   * `/cmd/server/main.go`: Het startpunt van de applicatie. Initialiseert de DB, Store, Worker en API-server.
   * `/db/migrations`: Bevat de SQL-bestanden (`.up.sql`, `.down.sql`) voor het database-schema.
-  * `/internal/api`: Bevat de Chi-router (`server.go`), de HTTP-handlers (`handlers.go`) en JSON-helpers (`json.go`).
-  * `/internal/crypto`: Bevat de AES-GCM logica (`crypto.go`) voor het versleutelen en ontsleutelen van de OAuth-tokens.
-  * `/internal/database`: Bevat de `ConnectDB` functie voor het opzetten van de `pgxpool` connectie.
-  * `/internal/domain`: Bevat de Go `structs` (`models.go`) die de databasetabellen vertegenwoordigen (bijv. `User`, `ConnectedAccount`).
-  * `/internal/store`: Bevat de "Repository Pattern" (`store.go`). Dit is de *enige* plek waar SQL-queries worden uitgevoerd.
-  * `/internal/worker`: Bevat de logica voor de achtergrond-worker (`worker.go`), inclusief token-verversing en de Google Calendar API-aanroepen.
-  * `/docker-compose.yml`: Definieert de `postgres` service voor de lokale ontwikkelomgeving.
-  * `/docs`: (Leeg) Gereserveerd voor meer diepgaande documentatie, zoals architectuurdiagrammen.
+  * `/internal/api`: Bevat de Chi-router (`server.go`), HTTP-handlers voor alle endpoints, en JSON-helpers.
+  * `/internal/api/auth`: OAuth 2.0 flow handlers met CSRF bescherming.
+  * `/internal/api/calendar`: Google Calendar API integratie handlers.
+  * `/internal/api/gmail`: Gmail API integratie handlers voor messages, drafts, en automation rules.
+  * `/internal/api/rule`: Automation rule management handlers.
+  * `/internal/crypto`: AES-GCM logica voor het versleutelen en ontsleutelen van OAuth-tokens.
+  * `/internal/database`: Database connectie setup met pgxpool.
+  * `/internal/domain`: Go structs die databasetabellen vertegenwoordigen (`User`, `ConnectedAccount`, `AutomationRule`, etc.).
+  * `/internal/store`: Repository Pattern implementatie - enige plek waar SQL-queries worden uitgevoerd.
+  * `/internal/worker`: Achtergrond-worker logica voor dual-service automation.
+  * `/internal/worker/calendar`: Calendar event processing en automation.
+  * `/internal/worker/gmail`: Gmail message processing, History API sync, en automation.
+  * `/docker-compose.yml`: PostgreSQL service voor lokale ontwikkelomgeving.
+  * `/docs`: Uitgebreide documentatie (API Reference, Architecture, Setup, Deployment).

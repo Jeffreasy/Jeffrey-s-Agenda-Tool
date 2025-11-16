@@ -70,6 +70,16 @@ DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:
 # Generate a new 32-character key for production
 ENCRYPTION_KEY="YOUR_NEW_PRODUCTION_ENCRYPTION_KEY_32"
 
+# Generate a secure JWT secret key (32+ characters)
+JWT_SECRET_KEY="YOUR_SECURE_JWT_SECRET_KEY_32_CHARS_MIN"
+
+#---------------------------------------------------
+# 4. LOGGING
+#---------------------------------------------------
+# Optional: Log to file in production
+LOG_FILE="/var/log/agenda-automator.log"
+LOG_LEVEL="info"
+
 #---------------------------------------------------
 # 5. OAUTH CLIENTS (Google)
 #---------------------------------------------------
@@ -87,6 +97,22 @@ GOOGLE_OAUTH_CLIENT_SECRET="PROD-CLIENT-SECRET"
 - Never commit `.env` files to version control
 - Rotate encryption keys periodically
 - Use different credentials for each environment
+
+### Gmail-Specific Configuration
+
+Since this application supports Gmail automation, ensure your Google OAuth application has the following scopes enabled:
+
+- `https://www.googleapis.com/auth/gmail.modify` (full Gmail access)
+- `https://www.googleapis.com/auth/gmail.compose` (create drafts)
+- `https://www.googleapis.com/auth/gmail.labels` (manage labels)
+- `https://www.googleapis.com/auth/calendar` (Calendar access)
+- `https://www.googleapis.com/auth/calendar.events` (Calendar events)
+
+**Gmail API Considerations:**
+- Gmail API has daily quotas (default: 1 billion quota units/day)
+- Rate limits: 250 quota units per user per second
+- Consider implementing exponential backoff for Gmail API calls
+- Monitor Gmail API usage in Google Cloud Console
 
 ## Database Setup
 
@@ -401,6 +427,9 @@ Consider adding:
 - Error rates
 - Database connection pool status
 - Worker execution metrics
+- Gmail API quota usage
+- Calendar API quota usage
+- OAuth token refresh rates
 
 ### Alerts
 
@@ -409,6 +438,10 @@ Set up alerts for:
 - High error rates
 - Database connection issues
 - High memory/CPU usage
+- Gmail API quota exhaustion
+- Calendar API quota exhaustion
+- OAuth token refresh failures
+- Worker processing failures
 
 ## Security
 
@@ -520,6 +553,18 @@ aws s3 cp backup_$DATE.sql.gz s3://your-backup-bucket/
 - Implement rate limiting
 - Check network latency
 
+#### Gmail API Quota Exceeded
+- Check Gmail API usage in Google Cloud Console
+- Implement exponential backoff for Gmail API calls
+- Reduce worker frequency if needed
+- Monitor per-user quota usage
+
+#### Calendar API Errors
+- Verify Calendar API scopes are enabled
+- Check Calendar API quota usage
+- Ensure proper timezone handling
+- Validate calendar permissions
+
 ### Logs and Debugging
 
 ```bash
@@ -533,15 +578,20 @@ psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "SELECT count(*) FROM pg_stat_activi
 htop
 df -h
 free -h
+
+# Check Gmail API quota usage (in Google Cloud Console)
+# Monitor Calendar API quota usage
 ```
 
 ## Support
 
 For deployment issues:
 1. Check application logs
-2. Verify configuration
-3. Test connectivity
+2. Verify configuration (especially OAuth scopes for Gmail)
+3. Test connectivity to Google APIs
 4. Review system resources
 5. Check network configuration
+6. Monitor Gmail and Calendar API quotas
+7. Verify database migration status
 
 Remember to test your deployment thoroughly before going live!
