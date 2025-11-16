@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// CreateAutomationRuleParams
+// CreateAutomationRuleParams contains parameters for creating automation rules.
 type CreateAutomationRuleParams struct {
 	ConnectedAccountID uuid.UUID
 	Name               string
@@ -37,7 +37,7 @@ func NewRuleStore(pool *pgxpool.Pool) *RuleStore {
 	return &RuleStore{pool: pool}
 }
 
-// CreateAutomationRule
+// CreateAutomationRule creates a new automation rule.
 func (s *RuleStore) CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) {
 	query := `
     INSERT INTO automation_rules (
@@ -251,4 +251,3 @@ func (s *RuleStore) DeleteRule(ctx context.Context, ruleID uuid.UUID) error {
 
 	return nil
 }
-

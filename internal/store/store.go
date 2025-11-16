@@ -30,7 +30,7 @@ type (
 	StoreGmailThreadParams            = gmail.StoreGmailThreadParams
 )
 
-// Re-export error for backward compatibility
+// ErrTokenRevoked re-export error for backward compatibility
 var ErrTokenRevoked = account.ErrTokenRevoked
 
 // Storer is de interface voor al onze database-interacties.
@@ -139,7 +139,7 @@ func (s *DBStore) UpdateAccountTokens(ctx context.Context, arg UpdateAccountToke
 	return s.accountStore.UpdateAccountTokens(ctx, arg)
 }
 
-// UpdateAccountLastChecked
+// UpdateAccountLastChecked updates the last checked time for an account.
 func (s *DBStore) UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error {
 	return s.accountStore.UpdateAccountLastChecked(ctx, id)
 }
@@ -166,7 +166,7 @@ func (s *DBStore) DeleteConnectedAccount(ctx context.Context, accountID uuid.UUI
 
 // --- RULE FUNCTIES ---
 
-// CreateAutomationRule
+// CreateAutomationRule creates a new automation rule.
 func (s *DBStore) CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error) {
 	return s.ruleStore.CreateAutomationRule(ctx, arg)
 }
@@ -203,17 +203,17 @@ func (s *DBStore) DeleteRule(ctx context.Context, ruleID uuid.UUID) error {
 
 // --- LOG FUNCTIES ---
 
-// UpdateAccountStatus
+// UpdateAccountStatus updates the status of an account.
 func (s *DBStore) UpdateAccountStatus(ctx context.Context, id uuid.UUID, status domain.AccountStatus) error {
 	return s.accountStore.UpdateAccountStatus(ctx, id, status)
 }
 
-// CreateAutomationLog
+// CreateAutomationLog creates a new automation log.
 func (s *DBStore) CreateAutomationLog(ctx context.Context, arg CreateLogParams) error {
 	return s.logStore.CreateAutomationLog(ctx, arg)
 }
 
-// HasLogForTrigger
+// HasLogForTrigger checks if a log exists for a trigger event.
 func (s *DBStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error) {
 	return s.logStore.HasLogForTrigger(ctx, ruleID, triggerEventID)
 }

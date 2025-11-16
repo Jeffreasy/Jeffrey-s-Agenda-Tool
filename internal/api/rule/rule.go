@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap" // <-- TOEGEVOEGD
 )
 
-// handleCreateRule creert een nieuwe automation rule.
+// HandleCreateRule creert een nieuwe automation rule.
 // AANGEPAST: Accepteert nu log *zap.Logger
 func HandleCreateRule(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +58,7 @@ func HandleCreateRule(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 	}
 }
 
-// handleGetRules haalt alle rules op voor een account.
+// HandleGetRules haalt alle rules op voor een account.
 // AANGEPAST: Accepteert nu log *zap.Logger
 func HandleGetRules(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +91,7 @@ func HandleGetRules(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 	}
 }
 
-// handleUpdateRule update een bestaande rule.
+// HandleUpdateRule update een bestaande rule.
 // AANGEPAST: Accepteert nu log *zap.Logger
 func HandleUpdateRule(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -143,7 +143,7 @@ func HandleUpdateRule(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 	}
 }
 
-// handleDeleteRule verwijdert een rule.
+// HandleDeleteRule verwijdert een rule.
 // AANGEPAST: Accepteert nu log *zap.Logger
 func HandleDeleteRule(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +182,7 @@ func HandleDeleteRule(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 	}
 }
 
-// handleToggleRule togglet de active status van een rule.
+// HandleToggleRule togglet de active status van een rule.
 // AANGEPAST: Accepteert nu log *zap.Logger
 func HandleToggleRule(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

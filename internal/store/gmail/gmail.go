@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Gmail-specific parameter structs
+// CreateGmailAutomationRuleParams contains parameters for creating Gmail automation rules.
 type CreateGmailAutomationRuleParams struct {
 	ConnectedAccountID uuid.UUID
 	Name               string

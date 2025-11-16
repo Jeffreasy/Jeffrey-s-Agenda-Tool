@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap" // <-- TOEGEVOEGD
 )
 
-// handleGetAutomationLogs haalt logs op voor een account.
+// HandleGetAutomationLogs haalt logs op voor een account.
 // AANGEPAST: Accepteert nu log *zap.Logger
 func HandleGetAutomationLogs(store store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

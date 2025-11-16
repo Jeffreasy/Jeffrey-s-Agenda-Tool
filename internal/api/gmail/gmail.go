@@ -395,7 +395,7 @@ func HandleGetGmailDrafts(store store.Storer, log *zap.Logger) http.HandlerFunc 
 	}
 }
 
-// handleCreateGmailRule creert een nieuwe Gmail automation rule
+// HandleCreateGmailRule creert een nieuwe Gmail automation rule
 // AANGEPAST: Accepteert nu log *zap.Logger
 func HandleCreateGmailRule(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -446,7 +446,7 @@ func HandleCreateGmailRule(storer store.Storer, log *zap.Logger) http.HandlerFun
 	}
 }
 
-// handleGetGmailRules haalt Gmail automation rules op
+// HandleGetGmailRules haalt Gmail automation rules op
 // AANGEPAST: Accepteert nu log *zap.Logger
 func HandleGetGmailRules(store store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -478,4 +478,3 @@ func HandleGetGmailRules(store store.Storer, log *zap.Logger) http.HandlerFunc {
 		common.WriteJSON(w, http.StatusOK, rules, log)
 	}
 }
-

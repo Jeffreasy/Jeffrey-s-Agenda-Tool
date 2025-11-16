@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap" // <-- TOEGEVOEGD
 )
 
-// handleGetMe haalt de gegevens op van de ingelogde gebruiker.
+// HandleGetMe haalt de gegevens op van de ingelogde gebruiker.
 // AANGEPAST: Accepteert nu log *zap.Logger
 func HandleGetMe(store store.Storer, log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

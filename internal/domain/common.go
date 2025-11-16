@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// --- ENUM Types ---
+// ProviderType represents the type of provider.
 type ProviderType string
 
 const (
@@ -62,4 +62,3 @@ type BaseAutomationLog struct {
 	ActionDetails  json.RawMessage     `db:"action_details"  json:"action_details"`
 	ErrorMessage   string              `db:"error_message"    json:"error_message"`
 }
-

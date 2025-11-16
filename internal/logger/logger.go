@@ -123,9 +123,8 @@ func WithContext(logger *zap.Logger, fields ...zap.Field) *zap.Logger {
 	return logger.With(fields...)
 }
 
-// Performance logging helper
+// LogDuration performance logging helper
 func LogDuration(logger *zap.Logger, operation string, duration int64, fields ...zap.Field) {
 	fields = append(fields, zap.String("operation", operation), zap.Int64("duration_ms", duration))
 	logger.Info("operation completed", fields...)
 }
-

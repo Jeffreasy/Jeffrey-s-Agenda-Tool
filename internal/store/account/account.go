@@ -212,7 +212,7 @@ func (s *AccountStore) UpdateAccountTokens(ctx context.Context, arg UpdateAccoun
 	return nil
 }
 
-// UpdateAccountLastChecked
+// UpdateAccountLastChecked updates the last checked time for an account.
 func (s *AccountStore) UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error {
 	query := `
     UPDATE connected_accounts
@@ -357,7 +357,7 @@ func (s *AccountStore) DeleteConnectedAccount(ctx context.Context, accountID uui
 	return nil
 }
 
-// UpdateAccountStatus
+// UpdateAccountStatus updates the status of an account.
 func (s *AccountStore) UpdateAccountStatus(ctx context.Context, id uuid.UUID, status domain.AccountStatus) error {
 	query := `
     UPDATE connected_accounts
@@ -467,4 +467,3 @@ func (s *AccountStore) GetValidTokenForAccount(ctx context.Context, accountID uu
 	// 6. Geef het nieuwe, geldige token terug
 	return newToken, nil
 }
-

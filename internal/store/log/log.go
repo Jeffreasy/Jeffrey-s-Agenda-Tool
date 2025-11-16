@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// CreateLogParams
+// CreateLogParams contains parameters for creating automation logs.
 type CreateLogParams struct {
 	ConnectedAccountID uuid.UUID
 	RuleID             uuid.UUID
@@ -29,7 +29,7 @@ func NewLogStore(pool *pgxpool.Pool) *LogStore {
 	return &LogStore{pool: pool}
 }
 
-// CreateAutomationLog
+// CreateAutomationLog creates a new automation log.
 func (s *LogStore) CreateAutomationLog(ctx context.Context, arg CreateLogParams) error {
 	query := `
     INSERT INTO automation_logs (
@@ -50,7 +50,7 @@ func (s *LogStore) CreateAutomationLog(ctx context.Context, arg CreateLogParams)
 	return nil
 }
 
-// HasLogForTrigger
+// HasLogForTrigger checks if a log exists for a trigger event.
 func (s *LogStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error) {
 	query := `
     SELECT 1
@@ -115,4 +115,3 @@ func (s *LogStore) GetLogsForAccount(ctx context.Context, accountID uuid.UUID, l
 
 	return logs, nil
 }
-

@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap" // <-- TOEGEVOEGD
 )
 
-// handleHealth checks if the API server is running and healthy.
+// HandleHealth checks if the API server is running and healthy.
 // AANGEPAST: Accepteert nu log *zap.Logger
 func HandleHealth(log *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
