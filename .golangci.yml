@@ -4,15 +4,6 @@ run:
 issues:
   # Dit is de "hou je mond" sectie
   exclude-rules:
-    # Negeer "magic numbers" (zoals 5, 10, 300) overal.
-    - linters: [mnd]
-
-    # Negeer "cyclomatic complexity" (te complexe functies)
-    - linters: [gocyclo]
-
-    # Negeer "duplicate code" (dupl)
-    - linters: [dupl]
-
     # Negeer "noctx" (http.NewRequest vs http.NewRequestWithContext in tests)
     - path: _test\.go
       linters: [noctx]
@@ -20,8 +11,6 @@ issues:
     # Negeer klachten over genegeerde errors voor specifieke functies
     - linters: [errcheck]
       text: "Error return value of `log.Sync` is not checked"
-    - linters: [errcheck]
-      text: "Error return value of `rand.Read` is not checked"
 
     # Negeer "stutter" (bv. user.UserStore) en "var-naming" (bv. AttachmentIDs)
     - linters: [revive]
@@ -45,7 +34,6 @@ linters:
     # Dit zijn de moderne vervangers voor de oude linters
     - unused        # Vervangt structcheck, varcheck, deadcode
     - revive        # Vervangt golint
-    - mnd           # Vervangt gomnd
     - copyloopvar   # Vervangt exportloopref
 
     # Essentiële linters
@@ -57,8 +45,6 @@ linters:
 
     # Goede "best practice" linters (die we nu temmen)
     - goconst
-    - gocyclo
     - gocritic
     - gosec
-    - dupl
     - noctx
