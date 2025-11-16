@@ -2,13 +2,14 @@
 package gmail
 
 import (
-	"agenda-automator-api/internal/domain"
-	"agenda-automator-api/internal/store"
 	"context"
 	"fmt"
 	"log"
 	"strconv"
 	"time"
+
+	"agenda-automator-api/internal/domain"
+	"agenda-automator-api/internal/store"
 
 	"golang.org/x/oauth2"
 	"google.golang.org/api/gmail/v1"
@@ -65,17 +66,17 @@ func (gp *GmailProcessor) ProcessMessages(ctx context.Context, acc domain.Connec
 	// Use History API for incremental sync if possible
 	var messagesToProcess []*gmail.Message
 	if historyID != nil && lastSync != nil {
-		historyIDUint, err := strconv.ParseUint(*historyID, 10, 64)
-		if err != nil {
-			log.Printf("[Gmail] Invalid history ID format for %s, falling back to full sync: %v", acc.Email, err)
+		historyIDUint, perr := strconv.ParseUint(*historyID, 10, 64)
+		if perr != nil {
+			log.Printf("[Gmail] Invalid history ID format for %s, falling back to full sync: %v", acc.Email, perr)
 			messagesToProcess, err = gp.fetchRecentMessages(srv, acc)
 			if err != nil {
 				return fmt.Errorf("could not fetch recent messages: %w", err)
 			}
 		} else {
 			historyCall := srv.Users.History.List("me").StartHistoryId(historyIDUint)
-			history, err := historyCall.Do()
-			if err != nil {
+			history, perr := historyCall.Do()
+			if perr != nil {
 				log.Printf("[Gmail] History API failed for %s, falling back to full sync: %v", acc.Email, err)
 				messagesToProcess, err = gp.fetchRecentMessages(srv, acc)
 				if err != nil {
@@ -100,8 +101,8 @@ func (gp *GmailProcessor) ProcessMessages(ctx context.Context, acc domain.Connec
 			return fmt.Errorf("could not fetch recent messages: %w", err)
 		}
 
-		profile, err := srv.Users.GetProfile("me").Do()
-		if err == nil && profile.HistoryId != 0 {
+		profile, perr := srv.Users.GetProfile("me").Do()
+		if perr == nil && profile.HistoryId != 0 {
 			initialHistoryID := fmt.Sprintf("%d", profile.HistoryId)
 			err = gp.store.UpdateGmailSyncState(ctx, acc.ID, initialHistoryID, time.Now())
 			if err != nil {

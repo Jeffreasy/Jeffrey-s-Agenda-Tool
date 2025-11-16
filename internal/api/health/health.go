@@ -1,8 +1,9 @@
 package health
 
 import (
-	"agenda-automator-api/internal/api/common"
 	"net/http"
+
+	"agenda-automator-api/internal/api/common"
 
 	"go.uber.org/zap" // <-- TOEGEVOEGD
 )

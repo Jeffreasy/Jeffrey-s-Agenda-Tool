@@ -1,14 +1,15 @@
 package store
 
 import (
+	"context"
+	"time"
+
 	"agenda-automator-api/internal/domain"
 	"agenda-automator-api/internal/store/account"
 	"agenda-automator-api/internal/store/gmail"
 	"agenda-automator-api/internal/store/log"
 	"agenda-automator-api/internal/store/rule"
 	"agenda-automator-api/internal/store/user"
-	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

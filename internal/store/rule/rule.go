@@ -1,10 +1,11 @@
 package rule
 
 import (
-	"agenda-automator-api/internal/domain"
 	"context"
 	"encoding/json"
 	"errors"
+
+	"agenda-automator-api/internal/domain"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

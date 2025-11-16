@@ -1,10 +1,11 @@
 package database
 
 import (
-	"agenda-automator-api/db/migrations"
 	"context"
 	"os"
 	"strings"
+
+	"agenda-automator-api/db/migrations"
 
 	"go.uber.org/zap"
 )
@@ -12,7 +13,7 @@ import (
 // RunMigrations voert de database migraties uit op basis van de env var
 func RunMigrations(ctx context.Context, db Querier, log *zap.Logger) error {
 	run := os.Getenv("RUN_MIGRATIONS")
-	if strings.ToLower(run) != "true" {
+	if !strings.EqualFold(run, "true") {
 		log.Info("skipping migrations (RUN_MIGRATIONS is not 'true')", zap.String("component", "migrations"))
 		return nil
 	}

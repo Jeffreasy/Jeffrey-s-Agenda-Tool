@@ -1,10 +1,11 @@
 package database
 
 import (
-	"agenda-automator-api/db/migrations"
 	"context"
 	"errors"
 	"testing"
+
+	"agenda-automator-api/db/migrations"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"

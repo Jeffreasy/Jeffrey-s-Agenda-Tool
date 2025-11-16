@@ -1,13 +1,14 @@
 package auth
 
 import (
-	"agenda-automator-api/internal/api/common"
-	"agenda-automator-api/internal/domain"
-	"agenda-automator-api/internal/store"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+
+	"agenda-automator-api/internal/api/common"
+	"agenda-automator-api/internal/domain"
+	"agenda-automator-api/internal/store"
 
 	// "log" // <-- VERWIJDERD
 	"net/http"

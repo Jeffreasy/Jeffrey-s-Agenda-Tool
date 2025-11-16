@@ -1,12 +1,13 @@
 package api
 
 import (
-	"agenda-automator-api/internal/api/common"
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+
+	"agenda-automator-api/internal/api/common"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -40,7 +41,7 @@ func TestAuthMiddleware(t *testing.T) {
 		})
 		middleware := server.authMiddleware(testHandler)
 
-		req := httptest.NewRequest("GET", "/api/v1/test", nil)
+		req := httptest.NewRequest("GET", "/api/v1/test", http.NoBody)
 		w := httptest.NewRecorder()
 
 		middleware.ServeHTTP(w, req)
@@ -58,7 +59,7 @@ func TestAuthMiddleware(t *testing.T) {
 		})
 		middleware := server.authMiddleware(testHandler)
 
-		req := httptest.NewRequest("GET", "/api/v1/test", nil)
+		req := httptest.NewRequest("GET", "/api/v1/test", http.NoBody)
 		req.Header.Set("Authorization", "Bearer invalid-token")
 		w := httptest.NewRecorder()
 
@@ -88,7 +89,7 @@ func TestAuthMiddleware(t *testing.T) {
 		})
 		middleware := server.authMiddleware(testHandler)
 
-		req := httptest.NewRequest("GET", "/api/v1/test", nil)
+		req := httptest.NewRequest("GET", "/api/v1/test", http.NoBody)
 		req.Header.Set("Authorization", "Bearer "+tokenString)
 		w := httptest.NewRecorder()
 
@@ -112,7 +113,7 @@ func TestAuthMiddleware(t *testing.T) {
 		})
 		middleware := server.authMiddleware(testHandler)
 
-		req := httptest.NewRequest("GET", "/api/v1/test", nil)
+		req := httptest.NewRequest("GET", "/api/v1/test", http.NoBody)
 		req.Header.Set("Authorization", "Bearer "+tokenString)
 		w := httptest.NewRecorder()
 
@@ -137,7 +138,7 @@ func TestAuthMiddleware(t *testing.T) {
 		})
 		middleware := server.authMiddleware(testHandler)
 
-		req := httptest.NewRequest("GET", "/api/v1/test", nil)
+		req := httptest.NewRequest("GET", "/api/v1/test", http.NoBody)
 		req.Header.Set("Authorization", "Bearer "+tokenString)
 		w := httptest.NewRecorder()
 

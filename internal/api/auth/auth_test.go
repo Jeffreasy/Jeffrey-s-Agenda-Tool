@@ -26,7 +26,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 	}
 
 	// Create a request
-	req, err := http.NewRequest("GET", "/api/v1/auth/google/login", nil)
+	req, err := http.NewRequest("GET", "/api/v1/auth/google/login", http.NoBody)
 	assert.NoError(t, err)
 
 	// Create a ResponseRecorder

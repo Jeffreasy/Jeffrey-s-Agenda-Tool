@@ -2,14 +2,15 @@
 package gmail
 
 import (
-	"agenda-automator-api/internal/domain"
-	"agenda-automator-api/internal/store"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	"agenda-automator-api/internal/domain"
+	"agenda-automator-api/internal/store"
 
 	"github.com/google/uuid"
 	"google.golang.org/api/gmail/v1"

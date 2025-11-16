@@ -4,14 +4,15 @@ import (
 	// "agenda-automator-api/internal/crypto" // <-- VERWIJDERD
 	"agenda-automator-api/internal/domain"
 	// "agenda-automator-api/internal/logger" // <-- VERWIJDERD (niet meer nodig)
-	"agenda-automator-api/internal/store"
-	"agenda-automator-api/internal/worker/calendar"
-	"agenda-automator-api/internal/worker/gmail"
 	"context"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
+
+	"agenda-automator-api/internal/store"
+	"agenda-automator-api/internal/worker/calendar"
+	"agenda-automator-api/internal/worker/gmail"
 
 	"go.uber.org/zap"
 )

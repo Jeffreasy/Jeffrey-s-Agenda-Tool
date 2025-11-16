@@ -1,13 +1,14 @@
 package account
 
 import (
-	"agenda-automator-api/internal/crypto"
-	"agenda-automator-api/internal/domain"
 	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"agenda-automator-api/internal/crypto"
+	"agenda-automator-api/internal/domain"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -68,7 +69,6 @@ func (s *AccountStore) UpsertConnectedAccount(
 	ctx context.Context,
 	arg UpsertConnectedAccountParams,
 ) (domain.ConnectedAccount, error) {
-
 	encryptedAccessToken, err := crypto.Encrypt([]byte(arg.AccessToken))
 	if err != nil {
 		return domain.ConnectedAccount{}, fmt.Errorf("could not encrypt access token: %w", err)
@@ -183,11 +183,12 @@ func (s *AccountStore) UpdateAccountTokens(ctx context.Context, arg UpdateAccoun
 		return fmt.Errorf("could not encrypt new access token: %w", err)
 	}
 
+	var encryptedRefreshToken []byte
 	var query string
 	var args []interface{}
 
 	if arg.NewRefreshToken != "" {
-		encryptedRefreshToken, err := crypto.Encrypt([]byte(arg.NewRefreshToken))
+		encryptedRefreshToken, err = crypto.Encrypt([]byte(arg.NewRefreshToken))
 		if err != nil {
 			return fmt.Errorf("could not encrypt new refresh token: %w", err)
 		}
@@ -457,7 +458,7 @@ func (s *AccountStore) GetValidTokenForAccount(ctx context.Context, accountID uu
 				zap.String("account_id", acc.ID.String()),
 				zap.String("component", "store"),
 			)
-			if err := s.UpdateAccountStatus(ctx, acc.ID, domain.StatusRevoked); err != nil {
+			if err = s.UpdateAccountStatus(ctx, acc.ID, domain.StatusRevoked); err != nil {
 				s.logger.Error(
 					"failed to update status for revoked account",
 					zap.Error(err),

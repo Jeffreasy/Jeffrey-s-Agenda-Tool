@@ -95,7 +95,7 @@ func TestHandleCreateEvent_InvalidAccountID(t *testing.T) {
 	userID := uuid.New()
 
 	// Create request
-	req, err := http.NewRequest("POST", "/api/v1/accounts/invalid-id/calendar/events", nil)
+	req, err := http.NewRequest("POST", "/api/v1/accounts/invalid-id/calendar/events", http.NoBody)
 	assert.NoError(t, err)
 
 	// Add user ID to context
@@ -185,7 +185,7 @@ func TestHandleGetCalendarEvents(t *testing.T) {
 	mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
 
 	// Create request
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/calendar/events", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/calendar/events", http.NoBody)
 	assert.NoError(t, err)
 
 	// Add user ID to context
@@ -220,7 +220,7 @@ func TestHandleGetCalendarEvents_InvalidAccountID(t *testing.T) {
 	userID := uuid.New()
 
 	// Create request
-	req, err := http.NewRequest("GET", "/api/v1/accounts/invalid-id/calendar/events", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/invalid-id/calendar/events", http.NoBody)
 	assert.NoError(t, err)
 
 	// Add user ID to context
@@ -265,7 +265,7 @@ func TestHandleListCalendars(t *testing.T) {
 	mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
 
 	// Create request
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/calendars", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/calendars", http.NoBody)
 	assert.NoError(t, err)
 
 	// Add user ID to context
@@ -346,7 +346,7 @@ func TestHandleGetAggregatedEvents_NoAuth(t *testing.T) {
 	mockStore := &store.MockStore{}
 
 	// Create request
-	req, err := http.NewRequest("POST", "/api/v1/calendar/aggregated-events", nil)
+	req, err := http.NewRequest("POST", "/api/v1/calendar/aggregated-events", http.NoBody)
 	assert.NoError(t, err)
 
 	// Create response recorder

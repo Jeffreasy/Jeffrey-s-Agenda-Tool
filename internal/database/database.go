@@ -1,11 +1,12 @@
 package database
 
 import (
-	"agenda-automator-api/internal/logger"
 	"context"
 	"fmt"
 	"os"
 	"time"
+
+	"agenda-automator-api/internal/logger"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"

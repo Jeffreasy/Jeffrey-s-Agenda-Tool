@@ -2,10 +2,11 @@
 package gmail
 
 import (
-	"agenda-automator-api/internal/domain"
 	"context"
 	"encoding/json"
 	"log"
+
+	"agenda-automator-api/internal/domain"
 
 	"google.golang.org/api/gmail/v1"
 )

@@ -43,7 +43,7 @@ func TestHandleGetMe(t *testing.T) {
 	mockStore.On("GetUserByID", mock.Anything, userID).Return(testUser, nil)
 
 	// Create a request with context containing user ID
-	req, err := http.NewRequest("GET", "/api/v1/me", nil)
+	req, err := http.NewRequest("GET", "/api/v1/me", http.NoBody)
 	assert.NoError(t, err)
 
 	// Add user ID to context (using the same key as in common.go)
@@ -84,7 +84,7 @@ func TestHandleGetMe_NoUserIDInContext(t *testing.T) {
 	mockStore := &store.MockStore{}
 
 	// Create a request without user ID in context
-	req, err := http.NewRequest("GET", "/api/v1/me", nil)
+	req, err := http.NewRequest("GET", "/api/v1/me", http.NoBody)
 	assert.NoError(t, err)
 
 	// Create a ResponseRecorder
@@ -118,7 +118,7 @@ func TestHandleGetMe_StoreError(t *testing.T) {
 	mockStore.On("GetUserByID", mock.Anything, userID).Return(domain.User{}, assert.AnError)
 
 	// Create a request with context containing user ID
-	req, err := http.NewRequest("GET", "/api/v1/me", nil)
+	req, err := http.NewRequest("GET", "/api/v1/me", http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)

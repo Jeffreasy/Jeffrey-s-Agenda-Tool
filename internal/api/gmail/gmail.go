@@ -1,12 +1,13 @@
 package gmail
 
 import (
-	"agenda-automator-api/internal/api/common"
-	"agenda-automator-api/internal/domain"
-	"agenda-automator-api/internal/store"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+
+	"agenda-automator-api/internal/api/common"
+	"agenda-automator-api/internal/domain"
+	"agenda-automator-api/internal/store"
 
 	// "log" // <-- VERWIJDERD
 	"net/http"
@@ -36,7 +37,7 @@ func HandleGetGmailMessages(store store.Storer, log *zap.Logger) http.HandlerFun
 		maxResultsStr := r.URL.Query().Get("maxResults")
 		maxResults := 50 // default
 		if maxResultsStr != "" {
-			if parsed, err := strconv.Atoi(maxResultsStr); err == nil && parsed > 0 && parsed <= 500 {
+			if parsed, perr := strconv.Atoi(maxResultsStr); perr == nil && parsed > 0 && parsed <= 500 {
 				maxResults = parsed
 			}
 		}
@@ -222,7 +223,7 @@ func HandleSendGmailMessage(store store.Storer, log *zap.Logger) http.HandlerFun
 			Body    string   `json:"body"`
 			IsHTML  bool     `json:"isHtml,omitempty"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 			common.WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body", log)
 			return
 		}
@@ -321,7 +322,7 @@ func HandleCreateGmailDraft(store store.Storer, log *zap.Logger) http.HandlerFun
 			Body    string   `json:"body"`
 			IsHTML  bool     `json:"isHtml,omitempty"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 			common.WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body", log)
 			return
 		}
@@ -424,7 +425,7 @@ func HandleCreateGmailRule(storer store.Storer, log *zap.Logger) http.HandlerFun
 		}
 
 		var req domain.GmailAutomationRule
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 			common.WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body", log)
 			return
 		}

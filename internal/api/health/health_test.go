@@ -15,7 +15,7 @@ func TestHandleHealth(t *testing.T) {
 	testLogger := zap.NewNop()
 
 	// Create a new HTTP request
-	req, err := http.NewRequest("GET", "/api/v1/health", nil)
+	req, err := http.NewRequest("GET", "/api/v1/health", http.NoBody)
 	assert.NoError(t, err)
 
 	// Create a ResponseRecorder to record the response

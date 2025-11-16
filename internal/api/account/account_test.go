@@ -47,7 +47,7 @@ func TestHandleGetConnectedAccounts(t *testing.T) {
 	mockStore.On("GetAccountsForUser", mock.Anything, userID).Return(accounts, nil)
 
 	// Create a request with context containing user ID
-	req, err := http.NewRequest("GET", "/api/v1/accounts", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts", http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
@@ -87,7 +87,7 @@ func TestHandleGetConnectedAccounts_NoUserID(t *testing.T) {
 	mockStore := &store.MockStore{}
 
 	// Create a request without user ID in context
-	req, err := http.NewRequest("GET", "/api/v1/accounts", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts", http.NoBody)
 	assert.NoError(t, err)
 
 	// Create a ResponseRecorder
@@ -115,7 +115,7 @@ func TestHandleGetConnectedAccounts_StoreError(t *testing.T) {
 	mockStore.On("GetAccountsForUser", mock.Anything, userID).Return([]domain.ConnectedAccount{}, assert.AnError)
 
 	// Create a request with context containing user ID
-	req, err := http.NewRequest("GET", "/api/v1/accounts", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts", http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
@@ -156,7 +156,7 @@ func TestHandleDeleteConnectedAccount(t *testing.T) {
 	mockStore.On("DeleteConnectedAccount", mock.Anything, accountID).Return(nil)
 
 	// Create a request with context containing user ID and URL param
-	req, err := http.NewRequest("DELETE", "/api/v1/accounts/"+accountID.String(), nil)
+	req, err := http.NewRequest("DELETE", "/api/v1/accounts/"+accountID.String(), http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
@@ -192,7 +192,7 @@ func TestHandleDeleteConnectedAccount_InvalidAccountID(t *testing.T) {
 	userID := uuid.New()
 
 	// Create a request with invalid account ID
-	req, err := http.NewRequest("DELETE", "/api/v1/accounts/invalid-id", nil)
+	req, err := http.NewRequest("DELETE", "/api/v1/accounts/invalid-id", http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
@@ -229,7 +229,7 @@ func TestHandleDeleteConnectedAccount_AccountNotFound(t *testing.T) {
 	mockStore.On("GetConnectedAccountByID", mock.Anything, accountID).Return(domain.ConnectedAccount{}, assert.AnError)
 
 	// Create a request with context containing user ID and URL param
-	req, err := http.NewRequest("DELETE", "/api/v1/accounts/"+accountID.String(), nil)
+	req, err := http.NewRequest("DELETE", "/api/v1/accounts/"+accountID.String(), http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
@@ -276,7 +276,7 @@ func TestHandleDeleteConnectedAccount_Unauthorized(t *testing.T) {
 	mockStore.On("GetConnectedAccountByID", mock.Anything, accountID).Return(account, nil)
 
 	// Create a request with context containing user ID and URL param
-	req, err := http.NewRequest("DELETE", "/api/v1/accounts/"+accountID.String(), nil)
+	req, err := http.NewRequest("DELETE", "/api/v1/accounts/"+accountID.String(), http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)

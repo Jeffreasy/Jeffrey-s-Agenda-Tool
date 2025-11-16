@@ -38,7 +38,7 @@ func TestHandleGetGmailMessages(t *testing.T) {
 	mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
 
 	// Create request
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/gmail/messages", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/gmail/messages", http.NoBody)
 	assert.NoError(t, err)
 
 	// Add user ID to context
@@ -73,7 +73,7 @@ func TestHandleGetGmailMessages_InvalidAccountID(t *testing.T) {
 	userID := uuid.New()
 
 	// Create request
-	req, err := http.NewRequest("GET", "/api/v1/accounts/invalid-id/gmail/messages", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/invalid-id/gmail/messages", http.NoBody)
 	assert.NoError(t, err)
 
 	// Add user ID to context
@@ -211,7 +211,7 @@ func TestHandleGetGmailLabels(t *testing.T) {
 	mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
 
 	// Create request
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/gmail/labels", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/gmail/labels", http.NoBody)
 	assert.NoError(t, err)
 
 	// Add user ID to context
@@ -298,7 +298,7 @@ func TestHandleGetGmailDrafts(t *testing.T) {
 	mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
 
 	// Create request
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/gmail/drafts", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/gmail/drafts", http.NoBody)
 	assert.NoError(t, err)
 
 	// Add user ID to context
@@ -453,7 +453,7 @@ func TestHandleGetGmailRules(t *testing.T) {
 	mockStore.On("GetGmailRulesForAccount", mock.Anything, accountID).Return([]domain.GmailAutomationRule{}, nil)
 
 	// Create request
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/gmail/rules", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/gmail/rules", http.NoBody)
 	assert.NoError(t, err)
 
 	// Add user ID to context

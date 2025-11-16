@@ -1,11 +1,12 @@
 package rule
 
 import (
+	"encoding/json"
+	"net/http"
+
 	"agenda-automator-api/internal/api/common"
 	"agenda-automator-api/internal/domain"
 	"agenda-automator-api/internal/store"
-	"encoding/json"
-	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -36,7 +37,7 @@ func HandleCreateRule(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 		}
 
 		var req domain.AutomationRule
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 			common.WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body", log) // <-- AANGEPAST
 			return
 		}
@@ -121,7 +122,7 @@ func HandleUpdateRule(storer store.Storer, log *zap.Logger) http.HandlerFunc {
 		}
 
 		var req domain.AutomationRule
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 			common.WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body", log) // <-- AANGEPAST
 			return
 		}

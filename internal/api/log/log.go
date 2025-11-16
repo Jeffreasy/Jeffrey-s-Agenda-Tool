@@ -1,9 +1,10 @@
 package log
 
 import (
+	"net/http"
+
 	"agenda-automator-api/internal/api/common"
 	"agenda-automator-api/internal/store"
-	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"

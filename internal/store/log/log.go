@@ -1,9 +1,10 @@
 package log
 
 import (
-	"agenda-automator-api/internal/domain"
 	"context"
 	"encoding/json"
+
+	"agenda-automator-api/internal/domain"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

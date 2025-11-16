@@ -1,9 +1,10 @@
 package user
 
 import (
+	"net/http"
+
 	"agenda-automator-api/internal/api/common"
 	"agenda-automator-api/internal/store"
-	"net/http"
 
 	"go.uber.org/zap" // <-- TOEGEVOEGD
 )

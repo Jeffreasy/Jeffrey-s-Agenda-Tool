@@ -52,7 +52,7 @@ func TestHandleGetAutomationLogs(t *testing.T) {
 	mockStore.On("GetConnectedAccountByID", mock.Anything, accountID).Return(account, nil)
 	mockStore.On("GetLogsForAccount", mock.Anything, accountID, 50).Return(logs, nil)
 
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/logs", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/logs", http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
@@ -95,7 +95,7 @@ func TestHandleGetAutomationLogs_InvalidAccountID(t *testing.T) {
 
 	userID := uuid.New()
 
-	req, err := http.NewRequest("GET", "/api/v1/accounts/invalid-id/logs", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/invalid-id/logs", http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
@@ -131,7 +131,7 @@ func TestHandleGetAutomationLogs_AccountNotFound(t *testing.T) {
 	// Set up the mock to return an error (account not found)
 	mockStore.On("GetConnectedAccountByID", mock.Anything, accountID).Return(domain.ConnectedAccount{}, assert.AnError)
 
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/logs", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/logs", http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
@@ -177,7 +177,7 @@ func TestHandleGetAutomationLogs_Unauthorized(t *testing.T) {
 	// Set up the mock
 	mockStore.On("GetConnectedAccountByID", mock.Anything, accountID).Return(account, nil)
 
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/logs", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/logs", http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)

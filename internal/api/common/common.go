@@ -1,13 +1,14 @@
 package common
 
 import (
-	"agenda-automator-api/internal/store" // logger package was hier niet nodig
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+
+	"agenda-automator-api/internal/store" // logger package was hier niet nodig
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"

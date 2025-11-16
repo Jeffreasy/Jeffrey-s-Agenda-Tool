@@ -1,6 +1,12 @@
 package api
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"strings"
+
 	"agenda-automator-api/internal/api/account"
 	"agenda-automator-api/internal/api/auth"
 	"agenda-automator-api/internal/api/calendar"
@@ -11,11 +17,6 @@ import (
 	"agenda-automator-api/internal/api/rule"
 	"agenda-automator-api/internal/api/user"
 	"agenda-automator-api/internal/store"
-	"context"
-	"fmt"
-	"net/http"
-	"os"
-	"strings"
 
 	"github.com/go-chi/chi/v5" // <-- HIER ZAT DE TYPO
 	"github.com/go-chi/cors"

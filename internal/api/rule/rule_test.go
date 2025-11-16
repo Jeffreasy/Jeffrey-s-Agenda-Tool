@@ -108,7 +108,7 @@ func TestHandleCreateRule_InvalidAccountID(t *testing.T) {
 
 	userID := uuid.New()
 
-	req, err := http.NewRequest("POST", "/api/v1/accounts/invalid-id/rules", nil)
+	req, err := http.NewRequest("POST", "/api/v1/accounts/invalid-id/rules", http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
@@ -161,7 +161,7 @@ func TestHandleGetRules(t *testing.T) {
 	mockStore.On("GetConnectedAccountByID", mock.Anything, accountID).Return(account, nil)
 	mockStore.On("GetRulesForAccount", mock.Anything, accountID).Return(rules, nil)
 
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/rules", nil)
+	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/rules", http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
@@ -303,7 +303,7 @@ func TestHandleDeleteRule(t *testing.T) {
 	mockStore.On("GetConnectedAccountByID", mock.Anything, accountID).Return(account, nil)
 	mockStore.On("DeleteRule", mock.Anything, ruleID).Return(nil)
 
-	req, err := http.NewRequest("DELETE", "/api/v1/rules/"+ruleID.String(), nil)
+	req, err := http.NewRequest("DELETE", "/api/v1/rules/"+ruleID.String(), http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
@@ -367,7 +367,7 @@ func TestHandleToggleRule(t *testing.T) {
 	mockStore.On("GetConnectedAccountByID", mock.Anything, accountID).Return(account, nil)
 	mockStore.On("ToggleRuleStatus", mock.Anything, ruleID).Return(toggledRule, nil)
 
-	req, err := http.NewRequest("PUT", "/api/v1/rules/"+ruleID.String()+"/toggle", nil)
+	req, err := http.NewRequest("PUT", "/api/v1/rules/"+ruleID.String()+"/toggle", http.NoBody)
 	assert.NoError(t, err)
 
 	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)

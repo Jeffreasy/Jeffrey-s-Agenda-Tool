@@ -1,12 +1,13 @@
 package calendar
 
 import (
-	"agenda-automator-api/internal/api/common"
-	"agenda-automator-api/internal/store"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
+
+	"agenda-automator-api/internal/api/common"
+	"agenda-automator-api/internal/store"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -30,7 +31,7 @@ func HandleCreateEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc 
 		}
 
 		var req calendar.Event
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 			common.WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body", logger) // <-- AANGEPAST
 			return
 		}
@@ -79,7 +80,7 @@ func HandleUpdateEvent(store store.Storer, logger *zap.Logger) http.HandlerFunc 
 		}
 
 		var req calendar.Event
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 			common.WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body", logger) // <-- AANGEPAST
 			return
 		}
@@ -333,7 +334,7 @@ func HandleGetAggregatedEvents(store store.Storer, logger *zap.Logger) http.Hand
 			} `json:"accounts"`
 		}
 		var req AggRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 			common.WriteJSONError(w, http.StatusBadRequest, "Ongeldige request body", logger) // <-- AANGEPAST
 			return
 		}

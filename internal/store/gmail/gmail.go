@@ -1,12 +1,13 @@
 package gmail
 
 import (
-	"agenda-automator-api/internal/database"
-	"agenda-automator-api/internal/domain"
 	"context"
 	"encoding/json"
 	"errors"
 	"time"
+
+	"agenda-automator-api/internal/database"
+	"agenda-automator-api/internal/domain"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
