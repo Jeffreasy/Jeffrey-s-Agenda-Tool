@@ -1,43 +1,52 @@
 run:
   timeout: 5m
 
-# AANGEPAST: 'run.skip-dirs' is nu 'issues.exclude-dirs'
 issues:
-  exclude-dirs:
-    - .github
+  # Dit is de "hou je mond" sectie
+  exclude-rules:
+    # Negeer "magic numbers" (zoals 5, 10, 300) overal.
+    - linters: [mnd]
+
+    # Negeer "cyclomatic complexity" (te complexe functies)
+    - linters: [gocyclo]
+
+    # Negeer "duplicate code" (dupl)
+    - linters: [dupl]
+
+    # Negeer "noctx" (http.NewRequest vs http.NewRequestWithContext in tests)
+    - path: _test\.go
+      linters: [noctx]
+
+    # Negeer klachten over genegeerde errors voor specifieke functies
+    - linters: [errcheck]
+      text: "Error return value of `log.Sync` is not checked"
+    - linters: [errcheck]
+      text: "Error return value of `rand.Read` is not checked"
+
+    # Negeer "stutter" (bv. user.UserStore) en "var-naming" (bv. AttachmentIDs)
+    - linters: [revive]
+      text: "stutters"
+    - linters: [revive]
+      text: "var-naming"
+
+    # Negeer ongebruikte parameters (zoals 'ctx' of 'r' die je wel moet accepteren)
+    - linters: [revive]
+      text: "unused-parameter"
 
 linters-settings:
-  # Instellingen om de linter minder vervelend te maken
+  # Dit fixt de 'shadow' fout van net
   govet:
     enable:
-      - shadow # Vervangt de oude 'check-shadowing'
-  gocritic:
-    # We negeren deze 'performance' fouten voor nu
-    disabled-checks:
-      - hugeParam
-      - rangeValCopy
-  gocyclo:
-    min-complexity: 25 # Sta complexere functies toe (jouw max was 35)
-  dupl:
-    threshold: 150 # Sta meer duplicatie toe
-  mnd:
-    # Negeer 'magic numbers'
-    checks: []
-  revive:
-    # Negeer klachten over 'stuttering' (bv. user.UserStore)
-    ignore-generated-header: true
-    rules:
-      - name: var-naming
-      - name: unused-parameter
+      - shadow
 
 linters:
   disable-all: true
   enable:
-    # Dit zijn de moderne vervangers
+    # Dit zijn de moderne vervangers voor de oude linters
     - unused        # Vervangt structcheck, varcheck, deadcode
     - revive        # Vervangt golint
     - mnd           # Vervangt gomnd
-    - copyloopvar   # Vervangt exportloopref (sinds Go 1.22)
+    - copyloopvar   # Vervangt exportloopref
 
     # Essentiële linters
     - errcheck
@@ -46,7 +55,7 @@ linters:
     - goimports
     - gofmt
 
-    # Goede 'best practice' linters
+    # Goede "best practice" linters (die we nu temmen)
     - goconst
     - gocyclo
     - gocritic

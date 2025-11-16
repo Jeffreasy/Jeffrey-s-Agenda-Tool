@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"time"
+
 	// _ "embed" // <-- VERWIJDERD
 
 	"net/http"
