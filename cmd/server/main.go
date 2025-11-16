@@ -55,7 +55,8 @@ func main() {
 	// 3. Initialiseer de Gedeelde OAuth2 Config
 	clientID := os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
 	clientSecret := os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
-	redirectURL := os.Getenv("OAUTH_REDIRECT_URL") // e.g. http://localhost:8080/api/v1/auth/google/callback
+	// e.g. http://localhost:8080/api/v1/auth/google/callback
+	redirectURL := os.Getenv("OAUTH_REDIRECT_URL")
 
 	if clientID == "" || clientSecret == "" || redirectURL == "" {
 		log.Fatal("Google OAuth configuration missing", zap.String("component", "main"))
@@ -72,14 +73,16 @@ func main() {
 			"https://www.googleapis.com/auth/calendar.events",
 
 			// Gmail APIs - Full access for comprehensive email management
-			"https://www.googleapis.com/auth/gmail.modify",   // Full Gmail access (read, send, delete, modify)
+			// Full Gmail access (read, send, delete, modify)
+			"https://www.googleapis.com/auth/gmail.modify",
 			"https://www.googleapis.com/auth/gmail.compose",  // Create drafts
 			"https://www.googleapis.com/auth/gmail.insert",   // Insert messages
 			"https://www.googleapis.com/auth/gmail.labels",   // Manage labels
 			"https://www.googleapis.com/auth/gmail.metadata", // Metadata access
 
 			// Google Drive API - for attachments
-			"https://www.googleapis.com/auth/drive.file", // Access to files created/modified by the app
+			// Access to files created/modified by the app
+			"https://www.googleapis.com/auth/drive.file",
 
 			// Google People API - for contacts
 			"https://www.googleapis.com/auth/contacts.readonly", // Read contacts

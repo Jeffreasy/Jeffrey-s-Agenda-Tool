@@ -60,8 +60,13 @@ func HandleGetGmailMessages(store store.Storer, log *zap.Logger) http.HandlerFun
 
 		messages, err := listCall.Do()
 		if err != nil {
-			log.Error("HANDLER ERROR [client.Users.Messages.List]", zap.Error(err)) // <-- AANGEPAST
-			common.WriteJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Kon berichten niet ophalen: %v", err), log)
+			log.Error("HANDLER ERROR [client.Users.Messages.List]", zap.Error(err))
+			common.WriteJSONError(
+				w,
+				http.StatusInternalServerError,
+				fmt.Sprintf("Kon berichten niet ophalen: %v", err),
+				log,
+			)
 			return
 		}
 
@@ -77,9 +82,14 @@ func HandleGetGmailMessages(store store.Storer, log *zap.Logger) http.HandlerFun
 			if err != nil {
 				// If full access fails (403), try metadata only
 				// This is expected when token only has gmail.metadata scope
-				fullMsg, err = client.Users.Messages.Get("me", msg.Id).Format("metadata").Do()
+				fullMsg, err = client.Users.Messages.Get("me", msg.Id).
+					Format("metadata").Do()
 				if err != nil {
-					log.Warn("Error fetching message metadata", zap.String("msg_id", msg.Id), zap.Error(err)) // <-- AANGEPAST
+					log.Warn(
+						"Error fetching message metadata",
+						zap.String("msg_id", msg.Id),
+						zap.Error(err),
+					)
 					continue
 				}
 			}

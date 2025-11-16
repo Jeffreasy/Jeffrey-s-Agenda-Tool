@@ -80,7 +80,11 @@ func (w *Worker) checkAccounts(ctx context.Context) error {
 		return fmt.Errorf("could not get active accounts: %w", err)
 	}
 
-	w.logger.Info("found active accounts to check", zap.Int("count", len(accounts)), zap.String("component", "worker"))
+	w.logger.Info(
+		"found active accounts to check",
+		zap.Int("count", len(accounts)),
+		zap.String("component", "worker"),
+	)
 
 	var wg sync.WaitGroup
 	for _, acc := range accounts {
