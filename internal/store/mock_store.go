@@ -161,6 +161,9 @@ func (m *MockStore) GetLogsForAccount(
 // GetValidTokenForAccount mocks the GetValidTokenForAccount method
 func (m *MockStore) GetValidTokenForAccount(ctx context.Context, accountID uuid.UUID) (*oauth2.Token, error) {
 	args := m.Called(ctx, accountID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*oauth2.Token), args.Error(1)
 }
 

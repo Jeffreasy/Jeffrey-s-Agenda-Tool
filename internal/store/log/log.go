@@ -3,30 +3,47 @@ package log
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"agenda-automator-api/internal/domain"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// DBPool defines the database operations used by LogStore
+type DBPool interface {
+	Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+}
+
+// LogStorer defines the interface for log storage operations.
+type LogStorer interface {
+	CreateAutomationLog(ctx context.Context, arg CreateLogParams) error
+	HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, triggerEventID string) (bool, error)
+	GetLogsForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.AutomationLog, error)
+}
 
 // CreateLogParams contains parameters for creating automation logs.
 type CreateLogParams struct {
 	ConnectedAccountID uuid.UUID
-	RuleID             uuid.UUID
+	RuleID             *uuid.UUID // Optional, can be nil
 	Status             domain.AutomationLogStatus
 	TriggerDetails     json.RawMessage // []byte
 	ActionDetails      json.RawMessage // []byte
 	ErrorMessage       string
 }
 
+// LogStore implements the LogStorer interface.
 // LogStore handles log-related database operations
 type LogStore struct {
-	pool *pgxpool.Pool
+	pool DBPool
 }
 
 // NewLogStore creates a new LogStore
-func NewLogStore(pool *pgxpool.Pool) *LogStore {
+func NewLogStore(pool DBPool) LogStorer {
 	return &LogStore{pool: pool}
 }
 
@@ -39,7 +56,7 @@ func (s *LogStore) CreateAutomationLog(ctx context.Context, arg CreateLogParams)
     `
 	_, err := s.pool.Exec(ctx, query,
 		arg.ConnectedAccountID,
-		arg.RuleID,
+		arg.RuleID, // This can be NULL if arg.RuleID is nil
 		arg.Status,
 		arg.TriggerDetails,
 		arg.ActionDetails,
@@ -65,10 +82,10 @@ func (s *LogStore) HasLogForTrigger(ctx context.Context, ruleID uuid.UUID, trigg
 	err := s.pool.QueryRow(ctx, query, ruleID, triggerEventID).Scan(&exists)
 
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil // Geen log gevonden, dit is geen error
 		}
-		return false, err // Een chte error
+		return false, err // Een echte error
 	}
 
 	return true, nil // Gevonden

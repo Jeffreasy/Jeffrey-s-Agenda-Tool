@@ -125,6 +125,15 @@ The store implements the Repository pattern, providing a clean interface for dat
 - Connection pooling with pgxpool
 - Schema migrations using golang-migrate
 
+**Performance Optimizations:**
+- **GIN indexes** for JSONB fields and array columns (labels, trigger_conditions, action_params)
+- **Functional indexes** for JSON path queries (calendar event IDs, Gmail message lookups)
+- **Partial indexes** for active records and status-based filtering
+- **Composite indexes** for multi-column queries (account + timestamp, user + status)
+- **Fill factor optimization** (70%) for frequently updated tables to reduce page splits
+- **Case-insensitive indexes** for email searches using lower() functions
+- **Check constraints** for data integrity and length limits for performance
+
 ### 4. Domain Models (`/internal/domain`)
 
 Contains Go structs representing database entities and business logic.

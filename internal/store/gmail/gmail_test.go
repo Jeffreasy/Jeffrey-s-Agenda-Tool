@@ -2,99 +2,437 @@ package gmail
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
+	"fmt"
 	"testing"
-	"unsafe"
+	"time"
+
+	"agenda-automator-api/internal/domain"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/pashagolub/pgxmock/v3"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-type MockQuerier struct {
-	mock.Mock
+// --- TEST HELPERS ---
+
+var testUUID = uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+var testAccountID = uuid.MustParse("550e8400-e29b-41d4-a716-446655441111")
+var testTime = time.Date(2025, time.November, 16, 12, 0, 0, 0, time.UTC)
+var dummyLog = zap.NewNop()
+var dummyDesc = stringPtr("Test Description")
+var dummyHistoryID = stringPtr("123456789")
+
+func stringPtr(s string) *string {
+	return &s
 }
 
-func (m *MockQuerier) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
-	args := m.Called(ctx, sql, arguments)
-	str := args.Get(0).(string)
-	return *(*pgconn.CommandTag)(unsafe.Pointer(&str)), args.Error(1)
-}
-func (m *MockQuerier) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
-	// Implementeer dit als je GetGmailRulesForAccount wilt testen
-	panic("unimplemented")
+// scanRuleHeaders definieert de kolomnamen en de volgorde voor Rules SELECTs
+var scanRuleHeaders = []string{
+	"id", "connected_account_id", "name", "description", "is_active", "trigger_type",
+	"trigger_conditions", "action_type", "action_params", "priority", "created_at", "updated_at",
 }
 
-func (m *MockQuerier) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
-	// Implementeer dit als je CreateGmailAutomationRule wilt testen
-	panic("unimplemented")
+// createMockRuleRow maakt een enkele rij aan voor een GmailAutomationRule (nu dynamisch met params)
+func createMockRuleRow(id uuid.UUID, isActive bool, priority int, name string, desc *string, triggerType domain.GmailRuleTriggerType, actionType domain.GmailRuleActionType) *pgxmock.Rows {
+	rule := domain.GmailAutomationRule{
+		BaseAutomationRule: domain.BaseAutomationRule{
+			Name:              name,
+			IsActive:          isActive,
+			TriggerConditions: json.RawMessage(`{"sender_pattern": "test@mail.com"}`),
+			ActionParams:      json.RawMessage(`{"replyMessage": "Auto reply"}`),
+			AccountEntity: domain.AccountEntity{
+				BaseEntity: domain.BaseEntity{
+					ID:        id,
+					CreatedAt: testTime,
+					UpdatedAt: testTime,
+				},
+				ConnectedAccountID: testAccountID,
+			},
+		},
+		Description: desc,
+		TriggerType: triggerType,
+		ActionType:  actionType,
+		Priority:    priority,
+	}
+
+	return pgxmock.NewRows(scanRuleHeaders).AddRow(
+		rule.BaseAutomationRule.ID, rule.BaseAutomationRule.ConnectedAccountID, rule.BaseAutomationRule.Name,
+		rule.Description, rule.BaseAutomationRule.IsActive,
+		rule.TriggerType, rule.BaseAutomationRule.TriggerConditions, rule.ActionType, rule.BaseAutomationRule.ActionParams,
+		rule.Priority, rule.BaseAutomationRule.CreatedAt, rule.BaseAutomationRule.UpdatedAt,
+	)
 }
 
-// --- De Test ---
+// --- CONSTRUCTOR TEST ---
 
-func TestGmailStore_DeleteGmailRule(t *testing.T) {
-	ctx := context.Background()
-	testRuleID := uuid.New()
-	testLogger := zap.NewNop()
+func TestNewGmailStore(t *testing.T) {
+	mockDB, _ := pgxmock.NewPool()
+	store := NewGmailStore(mockDB, dummyLog)
+	assert.NotNil(t, store)
+	assert.IsType(t, &GmailStore{}, store)
+}
 
-	t.Run("Success", func(t *testing.T) {
-		// Arrange
-		mockDB := new(MockQuerier)
-		store := NewGmailStore(mockDB, testLogger)
+// --- CRUD TESTS (RULES) ---
 
-		// We verwachten dat "Exec" wordt aangeroepen met de juiste query en ID.
-		// We mocken de return value: een CommandTag die zegt "1 row affected" en geen error.
-		mockDB.On("Exec", ctx, mock.AnythingOfType("string"), []interface{}{testRuleID}).
-			Return("DELETE 1", nil).
-			Once() // Verwacht dat het n keer wordt aangeroepen
+func TestGmailStore_CreateGmailAutomationRule_Success(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
 
-		// Act
-		err := store.DeleteGmailRule(ctx, testRuleID)
+	store := NewGmailStore(mockDB, dummyLog)
+	params := CreateGmailAutomationRuleParams{
+		ConnectedAccountID: testAccountID,
+		Name:               "New Rule",
+		Description:        dummyDesc,
+		IsActive:           true,
+		TriggerType:        domain.GmailTriggerStarred,
+		TriggerConditions:  json.RawMessage(`{}`),
+		ActionType:         domain.GmailActionStar,
+		ActionParams:       json.RawMessage(`{}`),
+		Priority:           1,
+	}
 
-		// Assert
-		assert.NoError(t, err)
-		mockDB.AssertExpectations(t) // Controleer of aan alle "On" verwachtingen is voldaan
-	})
+	mockDB.ExpectQuery(`INSERT INTO gmail_automation_rules`).
+		WithArgs(params.ConnectedAccountID, params.Name, params.Description, params.IsActive,
+			params.TriggerType, params.TriggerConditions, params.ActionType, params.ActionParams, params.Priority).
+		WillReturnRows(createMockRuleRow(testUUID, true, 1, params.Name, params.Description, params.TriggerType, params.ActionType))
 
-	t.Run("Error from DB", func(t *testing.T) {
-		// Arrange
-		mockDB := new(MockQuerier)
-		store := NewGmailStore(mockDB, testLogger)
-		dbError := errors.New("database connection lost")
+	rule, err := store.CreateGmailAutomationRule(context.Background(), params)
+	assert.NoError(t, err)
+	assert.Equal(t, testUUID, rule.ID)
+	assert.Equal(t, "New Rule", rule.Name)
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
 
-		// We simuleren een database error
-		mockDB.On("Exec", ctx, mock.AnythingOfType("string"), []interface{}{testRuleID}).
-			Return("", dbError).
-			Once()
+func TestGmailStore_CreateGmailAutomationRule_DBError(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
 
-		// Act
-		err := store.DeleteGmailRule(ctx, testRuleID)
+	store := NewGmailStore(mockDB, dummyLog)
+	params := CreateGmailAutomationRuleParams{
+		ConnectedAccountID: testAccountID,
+		Name:               "Fail",
+		Description:        dummyDesc,
+		IsActive:           true,
+		TriggerType:        domain.GmailTriggerStarred,
+		TriggerConditions:  json.RawMessage(`{}`),
+		ActionType:         domain.GmailActionStar,
+		ActionParams:       json.RawMessage(`{}`),
+		Priority:           1,
+	}
 
-		// Assert
-		assert.Error(t, err)
-		assert.Equal(t, dbError, err)
-		mockDB.AssertExpectations(t)
-	})
+	mockDB.ExpectQuery(`INSERT INTO gmail_automation_rules`).
+		WithArgs(params.ConnectedAccountID, params.Name, params.Description, params.IsActive,
+			params.TriggerType, params.TriggerConditions, params.ActionType, params.ActionParams, params.Priority).
+		WillReturnError(fmt.Errorf("database insert error"))
 
-	t.Run("Not Found (0 rows affected)", func(t *testing.T) {
-		// Arrange
-		mockDB := new(MockQuerier)
-		store := NewGmailStore(mockDB, testLogger)
+	_, err = store.CreateGmailAutomationRule(context.Background(), params)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "database insert error")
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
 
-		// We simuleren een succesvolle query, maar die 0 rijen heeft verwijderd
-		mockDB.On("Exec", ctx, mock.AnythingOfType("string"), []interface{}{testRuleID}).
-			Return("DELETE 0", nil).
-			Once()
+func TestGmailStore_GetGmailRulesForAccount_Success(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
 
-		// Act
-		err := store.DeleteGmailRule(ctx, testRuleID)
+	store := NewGmailStore(mockDB, dummyLog)
 
-		// Assert
-		assert.Error(t, err) // Je code retourneert een error in dit geval
-		assert.Contains(t, err.Error(), "no Gmail rule found")
-		mockDB.AssertExpectations(t)
-	})
+	rows := pgxmock.NewRows(scanRuleHeaders).
+		AddRow(testUUID, testAccountID, "Rule 1", dummyDesc, true, domain.GmailTriggerNewMessage, json.RawMessage(`{}`), domain.GmailActionArchive, json.RawMessage(`{}`), 10, testTime, testTime).
+		AddRow(uuid.New(), testAccountID, "Rule 2", dummyDesc, false, domain.GmailTriggerStarred, json.RawMessage(`{}`), domain.GmailActionStar, json.RawMessage(`{}`), 5, testTime, testTime)
+
+	mockDB.ExpectQuery(`SELECT .* FROM gmail_automation_rules WHERE connected_account_id = \$1`).
+		WithArgs(testAccountID).
+		WillReturnRows(rows)
+
+	rules, err := store.GetGmailRulesForAccount(context.Background(), testAccountID)
+	assert.NoError(t, err)
+	assert.Len(t, rules, 2)
+	assert.Equal(t, "Rule 1", rules[0].Name)
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_GetGmailRulesForAccount_NoRows(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	mockDB.ExpectQuery(`SELECT .* FROM gmail_automation_rules WHERE connected_account_id = \$1`).
+		WithArgs(testAccountID).
+		WillReturnRows(pgxmock.NewRows(scanRuleHeaders)) // Lege set
+
+	rules, err := store.GetGmailRulesForAccount(context.Background(), testAccountID)
+	assert.NoError(t, err)
+	assert.Empty(t, rules)
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_GetGmailRulesForAccount_ScanError(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	rows := pgxmock.NewRows(scanRuleHeaders).
+		AddRow(testUUID, testAccountID, "Rule 1", dummyDesc, "NOT_BOOL", domain.GmailTriggerNewMessage, json.RawMessage(`{}`), domain.GmailActionArchive, json.RawMessage(`{}`), 10, testTime, testTime) // IsActive is verkeerd
+
+	mockDB.ExpectQuery(`SELECT .* FROM gmail_automation_rules WHERE connected_account_id = \$1`).
+		WithArgs(testAccountID).
+		WillReturnRows(rows)
+
+	_, err = store.GetGmailRulesForAccount(context.Background(), testAccountID)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "Destination kind 'bool' not supported for value kind 'string' of column 'is_active'")
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_UpdateGmailRule_Success(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+	newDesc := stringPtr("Updated Description")
+	params := UpdateGmailRuleParams{
+		RuleID:            testUUID,
+		Name:              "Updated Name",
+		Description:       newDesc,
+		TriggerType:       domain.GmailTriggerSubjectMatch,
+		TriggerConditions: json.RawMessage(`{"subject_pattern": "new"}`),
+		ActionType:        domain.GmailActionForward,
+		ActionParams:      json.RawMessage(`{"email": "forward@mail.com"}`),
+		Priority:          5,
+	}
+
+	expectedRule := createMockRuleRow(testUUID, true, params.Priority, params.Name, params.Description, params.TriggerType, params.ActionType)
+	// Mock ExpectExec omdat we nu de RETURNING gebruiken (QueryRow)
+	mockDB.ExpectQuery(`UPDATE gmail_automation_rules`).
+		WithArgs(params.Name, params.Description, params.TriggerType, params.TriggerConditions,
+			params.ActionType, params.ActionParams, params.Priority, params.RuleID).
+		WillReturnRows(expectedRule)
+
+	rule, err := store.UpdateGmailRule(context.Background(), params)
+	assert.NoError(t, err)
+	assert.Equal(t, testUUID, rule.ID)
+	assert.Equal(t, "Updated Name", rule.Name)
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_UpdateGmailRule_NotFound(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+	params := UpdateGmailRuleParams{
+		RuleID:            testUUID,
+		Name:              "Updated Name",
+		Description:       dummyDesc,
+		TriggerType:       domain.GmailTriggerSubjectMatch,
+		TriggerConditions: json.RawMessage(`{"subject_pattern": "new"}`),
+		ActionType:        domain.GmailActionForward,
+		ActionParams:      json.RawMessage(`{"email": "forward@mail.com"}`),
+		Priority:          5,
+	}
+
+	mockDB.ExpectQuery(`UPDATE gmail_automation_rules`).
+		WithArgs(params.Name, params.Description, params.TriggerType, params.TriggerConditions,
+			params.ActionType, params.ActionParams, params.Priority, params.RuleID).
+		WillReturnError(pgx.ErrNoRows)
+
+	_, err = store.UpdateGmailRule(context.Background(), params)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, pgx.ErrNoRows)
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_DeleteGmailRule_Success(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	mockDB.ExpectExec(`DELETE FROM gmail_automation_rules WHERE id = \$1`).
+		WithArgs(testUUID).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+
+	err = store.DeleteGmailRule(context.Background(), testUUID)
+	assert.NoError(t, err)
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_DeleteGmailRule_NotFound(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	mockDB.ExpectExec(`DELETE FROM gmail_automation_rules WHERE id = \$1`).
+		WithArgs(testUUID).
+		WillReturnResult(pgxmock.NewResult("DELETE", 0))
+
+	err = store.DeleteGmailRule(context.Background(), testUUID)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "no Gmail rule found with ID")
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_DeleteGmailRule_DBError(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	mockDB.ExpectExec(`DELETE FROM gmail_automation_rules WHERE id = \$1`).
+		WithArgs(testUUID).
+		WillReturnError(fmt.Errorf("database delete error"))
+
+	err = store.DeleteGmailRule(context.Background(), testUUID)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "database delete error")
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_ToggleGmailRuleStatus_Success(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	expectedRule := createMockRuleRow(testUUID, false, 1, "Test Rule", dummyDesc, domain.GmailTriggerNewMessage, domain.GmailActionArchive)
+
+	mockDB.ExpectQuery(`UPDATE gmail_automation_rules SET is_active = NOT is_active`).
+		WithArgs(testUUID).
+		WillReturnRows(expectedRule)
+
+	rule, err := store.ToggleGmailRuleStatus(context.Background(), testUUID)
+	assert.NoError(t, err)
+	assert.Equal(t, testUUID, rule.ID)
+	assert.False(t, rule.IsActive) // Controleer de status toggle
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_ToggleGmailRuleStatus_NotFound(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	mockDB.ExpectQuery(`UPDATE gmail_automation_rules SET is_active = NOT is_active`).
+		WithArgs(testUUID).
+		WillReturnError(pgx.ErrNoRows)
+
+	_, err = store.ToggleGmailRuleStatus(context.Background(), testUUID)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, pgx.ErrNoRows)
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+// --- SYNC STATE TESTS ---
+
+func TestGmailStore_UpdateGmailSyncState_Success(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	mockDB.ExpectExec(`UPDATE connected_accounts SET gmail_history_id = \$1, gmail_last_sync = \$2`).
+		WithArgs(*dummyHistoryID, testTime, testAccountID).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	err = store.UpdateGmailSyncState(context.Background(), testAccountID, *dummyHistoryID, testTime)
+	assert.NoError(t, err)
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_UpdateGmailSyncState_DBError(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	mockDB.ExpectExec(`UPDATE connected_accounts SET gmail_history_id = \$1, gmail_last_sync = \$2`).
+		WithArgs(*dummyHistoryID, testTime, testAccountID).
+		WillReturnError(fmt.Errorf("database update error"))
+
+	err = store.UpdateGmailSyncState(context.Background(), testAccountID, *dummyHistoryID, testTime)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "database update error")
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_GetGmailSyncState_Success(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	rows := pgxmock.NewRows([]string{"gmail_history_id", "gmail_last_sync"}).
+		AddRow(*dummyHistoryID, testTime)
+
+	mockDB.ExpectQuery(`SELECT gmail_history_id, gmail_last_sync FROM connected_accounts WHERE id = \$1`).
+		WithArgs(testAccountID).
+		WillReturnRows(rows)
+
+	historyID, lastSync, err := store.GetGmailSyncState(context.Background(), testAccountID)
+	assert.NoError(t, err)
+	assert.Equal(t, *dummyHistoryID, *historyID)
+	assert.Equal(t, testTime, *lastSync)
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_GetGmailSyncState_NotFound(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	mockDB.ExpectQuery(`SELECT gmail_history_id, gmail_last_sync FROM connected_accounts WHERE id = \$1`).
+		WithArgs(testAccountID).
+		WillReturnError(pgx.ErrNoRows)
+
+	historyID, lastSync, err := store.GetGmailSyncState(context.Background(), testAccountID)
+	assert.Error(t, err)
+	assert.Nil(t, historyID)
+	assert.Nil(t, lastSync)
+	assert.ErrorContains(t, err, "account not found")
+	assert.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestGmailStore_GetGmailSyncState_DBError(t *testing.T) {
+	mockDB, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockDB.Close()
+
+	store := NewGmailStore(mockDB, dummyLog)
+
+	mockDB.ExpectQuery(`SELECT gmail_history_id, gmail_last_sync FROM connected_accounts WHERE id = \$1`).
+		WithArgs(testAccountID).
+		WillReturnError(fmt.Errorf("db connection failed"))
+
+	historyID, lastSync, err := store.GetGmailSyncState(context.Background(), testAccountID)
+	assert.Error(t, err)
+	assert.Nil(t, historyID)
+	assert.Nil(t, lastSync)
+	assert.ErrorContains(t, err, "db connection failed")
+	assert.NoError(t, mockDB.ExpectationsWereMet())
 }

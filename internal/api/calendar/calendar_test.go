@@ -13,355 +13,227 @@ import (
 	"agenda-automator-api/internal/domain"
 	"agenda-automator-api/internal/store"
 
-	// "agenda-automator-api/internal/logger" // <-- VERWIJDERD (niet meer nodig)
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/calendar/v3"
 )
 
+// --- Helpers ---
+
+// setupTestHandlers centraliseert de setup voor mocks en de logger.
+func setupTestHandlers(t *testing.T) (*store.MockStore, *zap.Logger) {
+	t.Helper() // Markeer dit als een test helper
+	mockStore := new(store.MockStore)
+	testLogger := zap.NewNop()
+	return mockStore, testLogger
+}
+
+// addTestContexts voegt de chi URL parameters en de user ID context toe.
+func addTestContexts(req *http.Request, userID uuid.UUID, accountID string) *http.Request {
+	// Voeg user ID toe aan context
+	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
+
+	// Voeg URL parameters toe
+	rctx := chi.NewRouteContext()
+	if accountID != "" {
+		rctx.URLParams.Add("accountId", accountID)
+	}
+	ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
+
+	return req.WithContext(ctx)
+}
+
+// --- Tests ---
+
 func TestHandleCreateEvent(t *testing.T) {
-	// Create test logger
-	observedCore, _ := observer.New(zapcore.DebugLevel)
-	testLogger := zap.New(observedCore)
-
-	// Create a mock store
-	mockStore := &store.MockStore{}
-
-	// Create test data
 	accountID := uuid.New()
 	userID := uuid.New()
 
-	// Mock the GetValidTokenForAccount call
-	mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
-
-	// Create a test event
+	// De test-event body
 	testEvent := &calendar.Event{
-		Summary:     "Test Event",
-		Description: "Test Description",
-		Start: &calendar.EventDateTime{
-			DateTime: time.Now().Format(time.RFC3339),
-		},
-		End: &calendar.EventDateTime{
-			DateTime: time.Now().Add(time.Hour).Format(time.RFC3339),
-		},
+		Summary: "Test Event",
+		Start:   &calendar.EventDateTime{DateTime: time.Now().Format(time.RFC3339)},
+		End:     &calendar.EventDateTime{DateTime: time.Now().Add(time.Hour).Format(time.RFC3339)},
 	}
-
-	// Create request body
 	body, _ := json.Marshal(testEvent)
 
-	// Create request
-	req, err := http.NewRequest("POST", "/api/v1/accounts/"+accountID.String()+"/calendar/events", bytes.NewReader(body))
-	assert.NoError(t, err)
+	// --- Test Scenario's ---
+	t.Run("Happy Path - Kan niet mocken", func(t *testing.T) {
+		// Arrange
+		mockStore, testLogger := setupTestHandlers(t)
+		handler := HandleCreateEvent(mockStore, testLogger)
+		rr := httptest.NewRecorder()
 
-	// Add user ID to context
-	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
-	req = req.WithContext(ctx)
+		req, _ := http.NewRequest("POST", "/test", bytes.NewReader(body))
+		req = addTestContexts(req, userID, accountID.String())
 
-	// Add URL parameters
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("accountId", accountID.String())
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		// Mock de store call
+		mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
 
-	// Create response recorder
-	rr := httptest.NewRecorder()
+		// Act
+		handler.ServeHTTP(rr, req)
 
-	// Call handler
-	// AANGEPAST: testLogger wordt nu meegegeven
-	handler := HandleCreateEvent(mockStore, testLogger)
-	handler.ServeHTTP(rr, req)
+		// Assert
+		// We kunnen de Google Client niet mocken (die wordt *in* de handler gemaakt).
+		// We kunnen dus alleen checken of de handler niet crasht en de store call is gedaan.
+		// De response code zal waarschijnlijk 500 zijn (omdat de Google call faalt),
+		// tenzij je een http.Client injecteert (wat nu niet zo is).
+		// Het belangrijkste is dat de mock call is geverifieerd.
+		mockStore.AssertExpectations(t)
+	})
 
-	// Since we can't easily mock the Google Calendar client,
-	// we test that the handler processes the request without panicking
-	// and that the mock store was called
-	mockStore.AssertExpectations(t)
-}
+	t.Run("Error - Invalid Account ID", func(t *testing.T) {
+		// Arrange
+		mockStore, testLogger := setupTestHandlers(t)
+		handler := HandleCreateEvent(mockStore, testLogger)
+		rr := httptest.NewRecorder()
 
-func TestHandleCreateEvent_InvalidAccountID(t *testing.T) {
-	// Create test logger
-	observedCore, _ := observer.New(zapcore.DebugLevel)
-	testLogger := zap.New(observedCore)
+		req, _ := http.NewRequest("POST", "/test", http.NoBody)
+		req = addTestContexts(req, userID, "invalid-id") // Geen UUID
 
-	// Create a mock store
-	mockStore := &store.MockStore{}
+		// Act
+		handler.ServeHTTP(rr, req)
 
-	// Create test data
-	userID := uuid.New()
+		// Assert
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Ongeldig account ID")
+	})
 
-	// Create request
-	req, err := http.NewRequest("POST", "/api/v1/accounts/invalid-id/calendar/events", http.NoBody)
-	assert.NoError(t, err)
+	t.Run("Error - Invalid JSON Body", func(t *testing.T) {
+		// Arrange
+		mockStore, testLogger := setupTestHandlers(t)
+		handler := HandleCreateEvent(mockStore, testLogger)
+		rr := httptest.NewRecorder()
 
-	// Add user ID to context
-	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
-	req = req.WithContext(ctx)
+		req, _ := http.NewRequest("POST", "/test", bytes.NewReader([]byte(`{"invalid": json}`)))
+		req = addTestContexts(req, userID, accountID.String())
 
-	// Add URL parameters
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("accountId", "invalid-id")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		// Act
+		handler.ServeHTTP(rr, req)
 
-	// Create response recorder
-	rr := httptest.NewRecorder()
-
-	// Call handler
-	handler := HandleCreateEvent(mockStore, testLogger)
-	handler.ServeHTTP(rr, req)
-
-	// Check response
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-
-	var response map[string]string
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
-	assert.Contains(t, response, "error")
-	assert.Contains(t, response["error"], "Ongeldig account ID")
-}
-
-func TestHandleCreateEvent_InvalidJSON(t *testing.T) {
-	// Create test logger
-	observedCore, _ := observer.New(zapcore.DebugLevel)
-	testLogger := zap.New(observedCore)
-
-	// Create a mock store
-	mockStore := &store.MockStore{}
-
-	// Create test data
-	accountID := uuid.New()
-	userID := uuid.New()
-
-	// Create invalid JSON
-	body := []byte(`{"invalid": json}`)
-
-	// Create request
-	req, err := http.NewRequest("POST", "/api/v1/accounts/"+accountID.String()+"/calendar/events", bytes.NewReader(body))
-	assert.NoError(t, err)
-
-	// Add user ID to context
-	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
-	req = req.WithContext(ctx)
-
-	// Add URL parameters
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("accountId", accountID.String())
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	// Create response recorder
-	rr := httptest.NewRecorder()
-
-	// Call handler
-	handler := HandleCreateEvent(mockStore, testLogger)
-	handler.ServeHTTP(rr, req)
-
-	// Check response
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-
-	var response map[string]string
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
-	assert.Contains(t, response, "error")
-	assert.Contains(t, response["error"], "Ongeldige request body")
+		// Assert
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Ongeldige request body")
+	})
 }
 
 func TestHandleGetCalendarEvents(t *testing.T) {
-	// Create test logger
-	observedCore, _ := observer.New(zapcore.DebugLevel)
-	testLogger := zap.New(observedCore)
-
-	// Create a mock store
-	mockStore := &store.MockStore{}
-
-	// Create test data
 	accountID := uuid.New()
 	userID := uuid.New()
 
-	// Mock the GetValidTokenForAccount call
-	mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
+	t.Run("Happy Path - Kan niet mocken", func(t *testing.T) {
+		// Arrange
+		mockStore, testLogger := setupTestHandlers(t)
+		handler := HandleGetCalendarEvents(mockStore, testLogger)
+		rr := httptest.NewRecorder()
 
-	// Create request
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/calendar/events", http.NoBody)
-	assert.NoError(t, err)
+		req, _ := http.NewRequest("GET", "/test", http.NoBody)
+		req = addTestContexts(req, userID, accountID.String())
 
-	// Add user ID to context
-	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
-	req = req.WithContext(ctx)
+		// Mock de store call
+		mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
 
-	// Add URL parameters
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("accountId", accountID.String())
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		// Act
+		handler.ServeHTTP(rr, req)
 
-	// Create response recorder
-	rr := httptest.NewRecorder()
+		// Assert
+		mockStore.AssertExpectations(t)
+	})
 
-	// Call handler
-	handler := HandleGetCalendarEvents(mockStore, testLogger)
-	handler.ServeHTTP(rr, req)
+	t.Run("Error - Invalid Account ID", func(t *testing.T) {
+		// Arrange
+		mockStore, testLogger := setupTestHandlers(t)
+		handler := HandleGetCalendarEvents(mockStore, testLogger)
+		rr := httptest.NewRecorder()
 
-	// Test that the handler processes the request
-	// (We can't easily mock the Google Calendar client, so we test the request processing)
-	mockStore.AssertExpectations(t)
-}
+		req, _ := http.NewRequest("GET", "/test", http.NoBody)
+		req = addTestContexts(req, userID, "invalid-id")
 
-func TestHandleGetCalendarEvents_InvalidAccountID(t *testing.T) {
-	// AANGEPAST: Maak een Nop-logger (doet niets)
-	testLogger := zap.NewNop()
+		// Act
+		handler.ServeHTTP(rr, req)
 
-	// Create a mock store
-	mockStore := &store.MockStore{}
-
-	// Create test data
-	userID := uuid.New()
-
-	// Create request
-	req, err := http.NewRequest("GET", "/api/v1/accounts/invalid-id/calendar/events", http.NoBody)
-	assert.NoError(t, err)
-
-	// Add user ID to context
-	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
-	req = req.WithContext(ctx)
-
-	// Add URL parameters
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("accountId", "invalid-id")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	// Create response recorder
-	rr := httptest.NewRecorder()
-
-	// Call handler
-	// AANGEPAST: testLogger meegegeven
-	handler := HandleGetCalendarEvents(mockStore, testLogger)
-	handler.ServeHTTP(rr, req)
-
-	// Check response
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-
-	var response map[string]string
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
-	assert.Contains(t, response, "error")
-	assert.Contains(t, response["error"], "Ongeldig account ID")
+		// Assert
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Ongeldig account ID")
+	})
 }
 
 func TestHandleListCalendars(t *testing.T) {
-	// AANGEPAST: Maak een Nop-logger
-	testLogger := zap.NewNop()
-
-	// Create a mock store
-	mockStore := &store.MockStore{}
-
-	// Create test data
 	accountID := uuid.New()
 	userID := uuid.New()
 
-	// Mock the GetValidTokenForAccount call
-	mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
-
-	// Create request
-	req, err := http.NewRequest("GET", "/api/v1/accounts/"+accountID.String()+"/calendars", http.NoBody)
-	assert.NoError(t, err)
-
-	// Add user ID to context
-	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
-	req = req.WithContext(ctx)
-
-	// Add URL parameters
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("accountId", accountID.String())
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	// Create response recorder
+	// Arrange
+	mockStore, testLogger := setupTestHandlers(t)
+	handler := HandleListCalendars(mockStore, testLogger)
 	rr := httptest.NewRecorder()
 
-	// Call handler
-	// AANGEPAST: testLogger meegegeven
-	handler := HandleListCalendars(mockStore, testLogger)
+	req, _ := http.NewRequest("GET", "/test", http.NoBody)
+	req = addTestContexts(req, userID, accountID.String())
+
+	// Mock de store call
+	mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
+
+	// Act
 	handler.ServeHTTP(rr, req)
 
-	// Test that the handler processes the request
+	// Assert
 	mockStore.AssertExpectations(t)
 }
 
 func TestHandleGetAggregatedEvents(t *testing.T) {
-	// AANGEPAST: Maak een Nop-logger
-	testLogger := zap.NewNop()
-
-	// Create a mock store
-	mockStore := &store.MockStore{}
-
-	// Create test data
-	userID := uuid.New()
 	accountID := uuid.New()
+	userID := uuid.New()
 
-	// Mock the store calls
-	mockStore.On("GetConnectedAccountByID", mock.Anything, accountID).Return(domain.ConnectedAccount{
-		ID:     accountID,
-		UserID: userID,
-	}, nil)
-	mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
-
-	// Create request body
+	// Request body
 	reqBody := map[string]interface{}{
 		"accounts": []map[string]string{
-			{
-				"accountId":  accountID.String(),
-				"calendarId": "primary",
-			},
+			{"accountId": accountID.String(), "calendarId": "primary"},
 		},
 	}
 	body, _ := json.Marshal(reqBody)
 
-	// Create request
-	req, err := http.NewRequest("POST", "/api/v1/calendar/aggregated-events", bytes.NewReader(body))
-	assert.NoError(t, err)
+	t.Run("Happy Path - Kan niet mocken", func(t *testing.T) {
+		// Arrange
+		mockStore, testLogger := setupTestHandlers(t)
+		handler := HandleGetAggregatedEvents(mockStore, testLogger)
+		rr := httptest.NewRecorder()
 
-	// Add user ID to context
-	ctx := context.WithValue(req.Context(), common.UserContextKey, userID)
-	req = req.WithContext(ctx)
+		req, _ := http.NewRequest("POST", "/test", bytes.NewReader(body))
+		// Noot: Deze handler gebruikt geen chi URL params, alleen de user ID
+		req = addTestContexts(req, userID, "")
 
-	// Create response recorder
-	rr := httptest.NewRecorder()
+		// Mock de store calls
+		mockStore.On("GetConnectedAccountByID", mock.Anything, accountID).Return(domain.ConnectedAccount{
+			ID:     accountID,
+			UserID: userID, // Zorg dat de user eigenaar is
+		}, nil)
+		mockStore.On("GetValidTokenForAccount", mock.Anything, accountID).Return(&oauth2.Token{AccessToken: "test-token"}, nil)
 
-	// Call handler
-	// AANGEPAST: testLogger meegegeven
-	handler := HandleGetAggregatedEvents(mockStore, testLogger)
-	handler.ServeHTTP(rr, req)
+		// Act
+		handler.ServeHTTP(rr, req)
 
-	// Test that the handler processes the request
-	mockStore.AssertExpectations(t)
-}
+		// Assert
+		mockStore.AssertExpectations(t)
+	})
 
-func TestHandleGetAggregatedEvents_NoAuth(t *testing.T) {
-	// AANGEPAST: Maak een Nop-logger
-	testLogger := zap.NewNop()
+	t.Run("Error - No Auth User", func(t *testing.T) {
+		// Arrange
+		mockStore, testLogger := setupTestHandlers(t)
+		handler := HandleGetAggregatedEvents(mockStore, testLogger)
+		rr := httptest.NewRecorder()
 
-	// Create a mock store
-	mockStore := &store.MockStore{}
+		// Geen user ID in context
+		req, _ := http.NewRequest("POST", "/test", http.NoBody)
 
-	// Create request
-	req, err := http.NewRequest("POST", "/api/v1/calendar/aggregated-events", http.NoBody)
-	assert.NoError(t, err)
+		// Act
+		handler.ServeHTTP(rr, req)
 
-	// Create response recorder
-	rr := httptest.NewRecorder()
-
-	// Call handler
-	// AANGEPAST: testLogger meegegeven
-	handler := HandleGetAggregatedEvents(mockStore, testLogger)
-	handler.ServeHTTP(rr, req)
-
-	// Check response
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-
-	var response map[string]string
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
-	assert.Contains(t, response, "error")
+		// Assert
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Contains(t, rr.Body.String(), "missing or invalid user ID in context")
+	})
 }

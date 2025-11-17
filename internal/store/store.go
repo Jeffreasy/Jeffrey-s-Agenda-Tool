@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"agenda-automator-api/internal/database"
 	"agenda-automator-api/internal/domain"
 	"agenda-automator-api/internal/store/account"
 	"agenda-automator-api/internal/store/gmail"
@@ -12,7 +13,6 @@ import (
 	"agenda-automator-api/internal/store/user"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
@@ -93,21 +93,21 @@ type Storer interface {
 
 // DBStore implementeert de Storer interface.
 type DBStore struct {
-	userStore    *user.UserStore
-	accountStore *account.AccountStore
-	ruleStore    *rule.RuleStore
-	logStore     *log.LogStore
-	gmailStore   *gmail.GmailStore
+	userStore    user.UserStorer
+	accountStore account.AccountStorer
+	ruleStore    rule.RuleStorer
+	logStore     log.LogStorer     // <-- GEWIJZIGD (naar interface)
+	gmailStore   gmail.GmailStorer // <-- GEWIJZIGD (naar interface)
 }
 
 // NewStore maakt een nieuwe DBStore
-func NewStore(pool *pgxpool.Pool, oauthCfg *oauth2.Config, logger *zap.Logger) Storer {
+func NewStore(db database.Querier, oauthCfg *oauth2.Config, logger *zap.Logger) Storer {
 	return &DBStore{
-		userStore:    user.NewUserStore(pool),
-		accountStore: account.NewAccountStore(pool, oauthCfg, logger),
-		ruleStore:    rule.NewRuleStore(pool),
-		logStore:     log.NewLogStore(pool),
-		gmailStore:   gmail.NewGmailStore(pool, logger),
+		userStore:    user.NewUserStore(db),
+		accountStore: account.NewAccountStore(db, oauthCfg, logger),
+		ruleStore:    rule.NewRuleStore(db),
+		logStore:     log.NewLogStore(db),
+		gmailStore:   gmail.NewGmailStore(db, logger),
 	}
 }
 

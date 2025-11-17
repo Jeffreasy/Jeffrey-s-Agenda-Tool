@@ -10,6 +10,7 @@ import (
 	"agenda-automator-api/internal/domain"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 )
 
@@ -56,6 +57,26 @@ type StoreGmailMessageParams struct {
 	Labels             []string
 }
 
+// GmailStorer defines the interface for Gmail-related storage operations.
+type GmailStorer interface {
+	CreateGmailAutomationRule(ctx context.Context, arg CreateGmailAutomationRuleParams) (domain.GmailAutomationRule, error)
+	GetGmailRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.GmailAutomationRule, error)
+	UpdateGmailRule(ctx context.Context, arg UpdateGmailRuleParams) (domain.GmailAutomationRule, error)
+	DeleteGmailRule(ctx context.Context, ruleID uuid.UUID) error
+	ToggleGmailRuleStatus(ctx context.Context, ruleID uuid.UUID) (domain.GmailAutomationRule, error)
+	StoreGmailMessage(ctx context.Context, arg StoreGmailMessageParams) error
+	StoreGmailThread(ctx context.Context, arg StoreGmailThreadParams) error
+	UpdateGmailMessageStatus(
+		ctx context.Context,
+		accountID uuid.UUID,
+		messageID string,
+		status domain.GmailMessageStatus,
+	) error
+	GetGmailMessagesForAccount(ctx context.Context, accountID uuid.UUID, limit int) ([]domain.GmailMessage, error)
+	UpdateGmailSyncState(ctx context.Context, accountID uuid.UUID, historyID string, lastSync time.Time) error
+	GetGmailSyncState(ctx context.Context, accountID uuid.UUID) (historyID *string, lastSync *time.Time, err error)
+}
+
 type StoreGmailThreadParams struct {
 	ConnectedAccountID uuid.UUID
 	GmailThreadID      string
@@ -67,6 +88,7 @@ type StoreGmailThreadParams struct {
 	Labels             []string
 }
 
+// GmailStore implements the GmailStorer interface.
 // GmailStore handles Gmail-related database operations
 type GmailStore struct {
 	db  database.Querier
@@ -74,7 +96,7 @@ type GmailStore struct {
 }
 
 // NewGmailStore creates a new GmailStore
-func NewGmailStore(db database.Querier, log *zap.Logger) *GmailStore {
+func NewGmailStore(db database.Querier, log *zap.Logger) GmailStorer {
 	return &GmailStore{
 		db:  db,
 		log: log.With(zap.String("component", "gmail_store")),
@@ -399,7 +421,7 @@ func (s *GmailStore) UpdateGmailSyncState(
 func (s *GmailStore) GetGmailSyncState(
 	ctx context.Context,
 	accountID uuid.UUID,
-) (historyID *string, lastSync *time.Time, err error) {
+) (*string, *time.Time, error) {
 	query := `
 		SELECT gmail_history_id, gmail_last_sync
 		FROM connected_accounts
@@ -407,13 +429,16 @@ func (s *GmailStore) GetGmailSyncState(
 	`
 
 	row := s.db.QueryRow(ctx, query, accountID)
-	err = row.Scan(&historyID, &lastSync)
+
+	var hID string
+	var ls time.Time
+	err := row.Scan(&hID, &ls)
 	if err != nil {
-		if errors.Is(err, errors.New("no rows in result set")) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil, errors.New("account not found")
 		}
 		return nil, nil, err
 	}
 
-	return historyID, lastSync, nil
+	return &hID, &ls, nil
 }

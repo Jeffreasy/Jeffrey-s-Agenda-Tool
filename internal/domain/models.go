@@ -44,7 +44,7 @@ type AutomationRule struct {
 type AutomationLog struct {
 	ID                 int64               `db:"id"                     json:"id"`
 	ConnectedAccountID uuid.UUID           `db:"connected_account_id"   json:"connected_account_id"`
-	RuleID             uuid.UUID           `db:"rule_id"                json:"rule_id"`
+	RuleID             *uuid.UUID          `db:"rule_id"                json:"rule_id,omitempty"`
 	Timestamp          time.Time           `db:"timestamp"              json:"timestamp"`
 	Status             AutomationLogStatus `db:"status"                 json:"status"`
 	TriggerDetails     json.RawMessage     `db:"trigger_details"        json:"trigger_details"`

@@ -10,14 +10,13 @@ import (
 	"agenda-automator-api/internal/domain"
 	"agenda-automator-api/internal/store"
 
-	// "log" // <-- VERWIJDERD
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"go.uber.org/zap" // <-- TOEGEVOEGD
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 	oauth2v2 "google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
@@ -79,12 +78,10 @@ func HandleGoogleCallback(storer store.Storer, oauthConfig *oauth2.Config, log *
 
 		stateCookie, err := r.Cookie(oauthStateCookieName)
 		if err != nil {
-			// AANGEPAST: log meegegeven
 			common.WriteJSONError(w, http.StatusBadRequest, "Geen state cookie", log)
 			return
 		}
 		if r.URL.Query().Get("state") != stateCookie.Value {
-			// AANGEPAST: log meegegeven
 			common.WriteJSONError(w, http.StatusBadRequest, "Ongeldige state token", log)
 			return
 		}
@@ -179,12 +176,24 @@ func HandleGoogleCallback(storer store.Storer, oauthConfig *oauth2.Config, log *
 // getUserInfo haalt profielinfo op met een geldig token
 func getUserInfo(ctx context.Context, token *oauth2.Token) (*oauth2v2.Userinfo, error) {
 	client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
-	oauth2Service, err := oauth2v2.NewService(ctx, option.WithHTTPClient(client))
+
+	// --- AANGEPAST VOOR TESTBAARHEID ---
+	opts := []option.ClientOption{option.WithHTTPClient(client)}
+
+	// Als OAUTH2_USERINFO_URL is ingesteld (in een test), gebruik die
+	if testEndpoint := os.Getenv("OAUTH2_USERINFO_URL"); testEndpoint != "" {
+		opts = append(opts, option.WithEndpoint(testEndpoint))
+	}
+	// --- EINDE AANPASSING ---
+
+	oauth2Service, err := oauth2v2.NewService(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	userInfo, err := oauth2Service.Userinfo.Get().Do()
+	// --- AANGEPAST: Gebruik het V2 Me pad ---
+	// Dit zorgt ervoor dat het endpoint correct wordt samengevoegd
+	userInfo, err := oauth2Service.Userinfo.V2.Me.Get().Do()
 	if err != nil {
 		return nil, err
 	}

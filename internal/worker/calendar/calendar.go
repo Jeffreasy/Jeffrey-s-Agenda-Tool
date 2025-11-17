@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 	"time"
 
@@ -18,13 +19,17 @@ import (
 
 // CalendarProcessor handles calendar event processing
 type CalendarProcessor struct {
-	store store.Storer
+	store      store.Storer
+	newService func(ctx context.Context, client *http.Client) (*calendar.Service, error)
 }
 
 // NewCalendarProcessor creates a new calendar processor
 func NewCalendarProcessor(s store.Storer) *CalendarProcessor {
 	return &CalendarProcessor{
 		store: s,
+		newService: func(ctx context.Context, client *http.Client) (*calendar.Service, error) {
+			return calendar.NewService(ctx, option.WithHTTPClient(client))
+		},
 	}
 }
 
@@ -34,9 +39,19 @@ func (cp *CalendarProcessor) ProcessEvents(
 	acc *domain.ConnectedAccount,
 	token *oauth2.Token,
 ) error {
+	rules, err := cp.store.GetRulesForAccount(ctx, acc.ID)
+	if err != nil {
+		return fmt.Errorf("could not fetch automation rules: %w", err)
+	}
+
+	if len(rules) == 0 {
+		log.Printf("[Calendar] No rules found for %s. Skipping.", acc.Email)
+		return nil
+	}
+
 	// Create calendar service
 	client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
-	srv, err := calendar.NewService(ctx, option.WithHTTPClient(client))
+	srv, err := cp.newService(ctx, client)
 	if err != nil {
 		return fmt.Errorf("could not create calendar service: %w", err)
 	}
@@ -58,13 +73,8 @@ func (cp *CalendarProcessor) ProcessEvents(
 		return fmt.Errorf("could not fetch calendar events: %w", err)
 	}
 
-	rules, err := cp.store.GetRulesForAccount(ctx, acc.ID)
-	if err != nil {
-		return fmt.Errorf("could not fetch automation rules: %w", err)
-	}
-
-	if len(events.Items) == 0 || len(rules) == 0 {
-		log.Printf("[Calendar] No upcoming events or no rules found for %s. Skipping.", acc.Email)
+	if len(events.Items) == 0 {
+		log.Printf("[Calendar] No upcoming events found for %s. Skipping.", acc.Email)
 		return nil
 	}
 
@@ -178,7 +188,7 @@ func (cp *CalendarProcessor) ProcessEvents(
 				})
 				logParams := store.CreateLogParams{
 					ConnectedAccountID: acc.ID,
-					RuleID:             rule.ID,
+					RuleID:             &rule.ID,
 					Status:             domain.LogSkipped,
 					TriggerDetails:     triggerDetailsJSON,
 					ActionDetails:      actionDetailsJSON,
@@ -214,7 +224,7 @@ func (cp *CalendarProcessor) ProcessEvents(
 				})
 				logParams := store.CreateLogParams{
 					ConnectedAccountID: acc.ID,
-					RuleID:             rule.ID,
+					RuleID:             &rule.ID,
 					Status:             domain.LogFailure,
 					TriggerDetails:     triggerDetailsJSON,
 					ErrorMessage:       err.Error(),
@@ -239,7 +249,7 @@ func (cp *CalendarProcessor) ProcessEvents(
 
 			logParams := store.CreateLogParams{
 				ConnectedAccountID: acc.ID,
-				RuleID:             rule.ID,
+				RuleID:             &rule.ID,
 				Status:             domain.LogSuccess,
 				TriggerDetails:     triggerDetailsJSON,
 				ActionDetails:      actionDetailsJSON,

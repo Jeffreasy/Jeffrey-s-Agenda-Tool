@@ -8,14 +8,29 @@ import (
 	"time"
 
 	"agenda-automator-api/internal/crypto"
+	"agenda-automator-api/internal/database"
 	"agenda-automator-api/internal/domain"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
+
+// AccountStorer defines the interface for account store operations
+type AccountStorer interface {
+	UpsertConnectedAccount(ctx context.Context, arg UpsertConnectedAccountParams) (domain.ConnectedAccount, error)
+	GetConnectedAccountByID(ctx context.Context, id uuid.UUID) (domain.ConnectedAccount, error)
+	UpdateAccountTokens(ctx context.Context, arg UpdateAccountTokensParams) error
+	UpdateAccountLastChecked(ctx context.Context, id uuid.UUID) error
+	GetActiveAccounts(ctx context.Context) ([]domain.ConnectedAccount, error)
+	GetAccountsForUser(ctx context.Context, userID uuid.UUID) ([]domain.ConnectedAccount, error)
+	VerifyAccountOwnership(ctx context.Context, accountID uuid.UUID, userID uuid.UUID) error
+	DeleteConnectedAccount(ctx context.Context, accountID uuid.UUID) error
+	UpdateAccountStatus(ctx context.Context, id uuid.UUID, status domain.AccountStatus) error
+	UpdateConnectedAccountToken(ctx context.Context, params UpdateConnectedAccountTokenParams) error
+	GetValidTokenForAccount(ctx context.Context, accountID uuid.UUID) (*oauth2.Token, error)
+}
 
 // ErrTokenRevoked wordt gegooid als de gebruiker de toegang heeft ingetrokken.
 var ErrTokenRevoked = fmt.Errorf("token access has been revoked by user")
@@ -50,15 +65,15 @@ type UpdateConnectedAccountTokenParams struct {
 
 // AccountStore handles account-related database operations
 type AccountStore struct {
-	pool              *pgxpool.Pool
+	db                database.Querier
 	googleOAuthConfig *oauth2.Config // Nodig om tokens te verversen
 	logger            *zap.Logger
 }
 
 // NewAccountStore creates a new AccountStore
-func NewAccountStore(pool *pgxpool.Pool, oauthCfg *oauth2.Config, logger *zap.Logger) *AccountStore {
+func NewAccountStore(db database.Querier, oauthCfg *oauth2.Config, logger *zap.Logger) AccountStorer {
 	return &AccountStore{
-		pool:              pool,
+		db:                db,
 		googleOAuthConfig: oauthCfg,
 		logger:            logger,
 	}
@@ -102,7 +117,7 @@ func (s *AccountStore) UpsertConnectedAccount(
         created_at, updated_at, last_checked;
     `
 
-	row := s.pool.QueryRow(ctx, query,
+	row := s.db.QueryRow(ctx, query,
 		arg.UserID,
 		arg.Provider,
 		arg.Email,
@@ -147,7 +162,7 @@ func (s *AccountStore) GetConnectedAccountByID(ctx context.Context, id uuid.UUID
         WHERE id = $1
     `
 
-	row := s.pool.QueryRow(ctx, query, id)
+	row := s.db.QueryRow(ctx, query, id)
 
 	var acc domain.ConnectedAccount
 	err := row.Scan(
@@ -208,7 +223,7 @@ func (s *AccountStore) UpdateAccountTokens(ctx context.Context, arg UpdateAccoun
 		args = []interface{}{encryptedAccessToken, arg.NewTokenExpiry, arg.AccountID}
 	}
 
-	cmdTag, err := s.pool.Exec(ctx, query, args...)
+	cmdTag, err := s.db.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("db exec error: %w", err)
 	}
@@ -228,7 +243,7 @@ func (s *AccountStore) UpdateAccountLastChecked(ctx context.Context, id uuid.UUI
     WHERE id = $1;
     `
 
-	_, err := s.pool.Exec(ctx, query, id)
+	_, err := s.db.Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("db exec error: %w", err)
 	}
@@ -246,7 +261,7 @@ func (s *AccountStore) GetActiveAccounts(ctx context.Context) ([]domain.Connecte
     WHERE status = 'active';
     `
 
-	rows, err := s.pool.Query(ctx, query)
+	rows, err := s.db.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("db query error: %w", err)
 	}
@@ -294,7 +309,7 @@ func (s *AccountStore) GetAccountsForUser(ctx context.Context, userID uuid.UUID)
     ORDER BY created_at DESC;
     `
 
-	rows, err := s.pool.Query(ctx, query, userID)
+	rows, err := s.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("db query error: %w", err)
 	}
@@ -340,7 +355,7 @@ func (s *AccountStore) VerifyAccountOwnership(ctx context.Context, accountID uui
     LIMIT 1;
     `
 	var exists int
-	err := s.pool.QueryRow(ctx, query, accountID, userID).Scan(&exists)
+	err := s.db.QueryRow(ctx, query, accountID, userID).Scan(&exists)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -355,7 +370,7 @@ func (s *AccountStore) VerifyAccountOwnership(ctx context.Context, accountID uui
 // DeleteConnectedAccount verwijdert een specifiek account en diens data.
 func (s *AccountStore) DeleteConnectedAccount(ctx context.Context, accountID uuid.UUID) error {
 	query := `DELETE FROM connected_accounts WHERE id = $1`
-	cmdTag, err := s.pool.Exec(ctx, query, accountID)
+	cmdTag, err := s.db.Exec(ctx, query, accountID)
 	if err != nil {
 		return fmt.Errorf("db exec error: %w", err)
 	}
@@ -372,7 +387,7 @@ func (s *AccountStore) UpdateAccountStatus(ctx context.Context, id uuid.UUID, st
     SET status = $1, updated_at = now()
     WHERE id = $2;
     `
-	_, err := s.pool.Exec(ctx, query, status, id)
+	_, err := s.db.Exec(ctx, query, status, id)
 	if err != nil {
 		return fmt.Errorf("db exec error: %w", err)
 	}
@@ -384,7 +399,7 @@ func (s *AccountStore) UpdateConnectedAccountToken(
 	ctx context.Context,
 	params UpdateConnectedAccountTokenParams,
 ) error {
-	_, err := s.pool.Exec(ctx, `
+	_, err := s.db.Exec(ctx, `
 		UPDATE connected_accounts
 		SET access_token = $1, refresh_token = $2, token_expiry = $3, updated_at = now()
 		WHERE id = $4

@@ -5,12 +5,23 @@ import (
 	"encoding/json"
 	"errors"
 
+	"agenda-automator-api/internal/database"
 	"agenda-automator-api/internal/domain"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// RuleStorer defines the interface for rule store operations
+type RuleStorer interface {
+	CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) (domain.AutomationRule, error)
+	GetRuleByID(ctx context.Context, ruleID uuid.UUID) (domain.AutomationRule, error)
+	GetRulesForAccount(ctx context.Context, accountID uuid.UUID) ([]domain.AutomationRule, error)
+	UpdateRule(ctx context.Context, arg UpdateRuleParams) (domain.AutomationRule, error)
+	ToggleRuleStatus(ctx context.Context, ruleID uuid.UUID) (domain.AutomationRule, error)
+	VerifyRuleOwnership(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error
+	DeleteRule(ctx context.Context, ruleID uuid.UUID) error
+}
 
 // CreateAutomationRuleParams contains parameters for creating automation rules.
 type CreateAutomationRuleParams struct {
@@ -30,12 +41,12 @@ type UpdateRuleParams struct {
 
 // RuleStore handles rule-related database operations
 type RuleStore struct {
-	pool *pgxpool.Pool
+	db database.Querier
 }
 
 // NewRuleStore creates a new RuleStore
-func NewRuleStore(pool *pgxpool.Pool) *RuleStore {
-	return &RuleStore{pool: pool}
+func NewRuleStore(db database.Querier) RuleStorer {
+	return &RuleStore{db: db}
 }
 
 // scanRule scans a database row into an AutomationRule
@@ -68,7 +79,7 @@ func (s *RuleStore) CreateAutomationRule(
     RETURNING id, connected_account_id, name, is_active, trigger_conditions, action_params, created_at, updated_at;
     `
 
-	row := s.pool.QueryRow(ctx, query,
+	row := s.db.QueryRow(ctx, query,
 		arg.ConnectedAccountID,
 		arg.Name,
 		arg.TriggerConditions,
@@ -86,7 +97,7 @@ func (s *RuleStore) GetRuleByID(ctx context.Context, ruleID uuid.UUID) (domain.A
 	    FROM automation_rules
 	    WHERE id = $1
 	    `
-	row := s.pool.QueryRow(ctx, query, ruleID)
+	row := s.db.QueryRow(ctx, query, ruleID)
 
 	var rule domain.AutomationRule
 	err := row.Scan(
@@ -120,7 +131,7 @@ func (s *RuleStore) GetRulesForAccount(ctx context.Context, accountID uuid.UUID)
     ORDER BY created_at DESC;
     `
 
-	rows, err := s.pool.Query(ctx, query, accountID)
+	rows, err := s.db.Query(ctx, query, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +171,7 @@ func (s *RuleStore) UpdateRule(ctx context.Context, arg UpdateRuleParams) (domai
     WHERE id = $4
     RETURNING id, connected_account_id, name, is_active, trigger_conditions, action_params, created_at, updated_at;
     `
-	row := s.pool.QueryRow(ctx, query,
+	row := s.db.QueryRow(ctx, query,
 		arg.Name,
 		arg.TriggerConditions,
 		arg.ActionParams,
@@ -178,7 +189,7 @@ func (s *RuleStore) ToggleRuleStatus(ctx context.Context, ruleID uuid.UUID) (dom
     WHERE id = $1
     RETURNING id, connected_account_id, name, is_active, trigger_conditions, action_params, created_at, updated_at;
     `
-	row := s.pool.QueryRow(ctx, query, ruleID)
+	row := s.db.QueryRow(ctx, query, ruleID)
 
 	var rule domain.AutomationRule
 	err := row.Scan(
@@ -209,7 +220,7 @@ func (s *RuleStore) VerifyRuleOwnership(ctx context.Context, ruleID uuid.UUID, u
 	   LIMIT 1;
 	   `
 	var exists int
-	err := s.pool.QueryRow(ctx, query, ruleID, userID).Scan(&exists)
+	err := s.db.QueryRow(ctx, query, ruleID, userID).Scan(&exists)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -228,7 +239,7 @@ func (s *RuleStore) DeleteRule(ctx context.Context, ruleID uuid.UUID) error {
 	   WHERE id = $1;
 	   `
 
-	cmdTag, err := s.pool.Exec(ctx, query, ruleID)
+	cmdTag, err := s.db.Exec(ctx, query, ruleID)
 	if err != nil {
 		return err
 	}

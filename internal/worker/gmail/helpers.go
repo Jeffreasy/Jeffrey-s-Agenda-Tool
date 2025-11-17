@@ -188,7 +188,7 @@ func (gp *GmailProcessor) logGmailAutomationSuccess(
 ) {
 	params := store.CreateLogParams{
 		ConnectedAccountID: accountID,
-		RuleID:             *ruleID,
+		RuleID:             ruleID,
 		Status:             domain.LogSuccess,
 		TriggerDetails: json.RawMessage(
 			fmt.Sprintf(
@@ -212,7 +212,7 @@ func (gp *GmailProcessor) logGmailAutomationFailure(
 ) {
 	params := store.CreateLogParams{
 		ConnectedAccountID: accountID,
-		RuleID:             *ruleID,
+		RuleID:             ruleID,
 		Status:             domain.LogFailure,
 		TriggerDetails: json.RawMessage(
 			fmt.Sprintf(

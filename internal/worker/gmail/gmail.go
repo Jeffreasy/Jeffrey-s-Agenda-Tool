@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -18,13 +19,17 @@ import (
 
 // GmailProcessor handles Gmail message processing
 type GmailProcessor struct {
-	store store.Storer
+	store      store.Storer
+	newService func(ctx context.Context, client *http.Client) (*gmail.Service, error)
 }
 
 // NewGmailProcessor creates a new Gmail processor
 func NewGmailProcessor(s store.Storer) *GmailProcessor {
 	return &GmailProcessor{
 		store: s,
+		newService: func(ctx context.Context, client *http.Client) (*gmail.Service, error) {
+			return gmail.NewService(ctx, option.WithHTTPClient(client))
+		},
 	}
 }
 
@@ -32,7 +37,7 @@ func NewGmailProcessor(s store.Storer) *GmailProcessor {
 func (gp *GmailProcessor) ProcessMessages(ctx context.Context, acc *domain.ConnectedAccount, token *oauth2.Token) error {
 	// Create Gmail service
 	client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
-	srv, err := gmail.NewService(ctx, option.WithHTTPClient(client))
+	srv, err := gp.newService(ctx, client)
 	if err != nil {
 		return fmt.Errorf("could not create Gmail service: %w", err)
 	}

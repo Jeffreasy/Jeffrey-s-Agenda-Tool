@@ -39,7 +39,7 @@ func TestHandleGetAutomationLogs(t *testing.T) {
 		{
 			ID:                 1,
 			ConnectedAccountID: accountID,
-			RuleID:             ruleID,
+			RuleID:             &ruleID,
 			Timestamp:          time.Now(),
 			Status:             domain.LogSuccess,
 			TriggerDetails:     json.RawMessage(`{"event_id": "test"}`),
